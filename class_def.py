@@ -59,18 +59,26 @@ class ClassDefGenerator:
         output += "};\n"
         return output
 
+    def get_type_label(self, _type, use_refs):
+        if _type in primitive_map:
+            return _type.__name__
+        elif use_refs:
+            return _type.__name__ + "&"
+        else:
+            return _type.__name__ + "&&"
+
     def methods(self, class_repr):
         protos = []
         for method in class_repr.methods:
             protos.append(self.method(class_repr, method))
         return "\n".join(protos)
 
-    def method(self, class_repr, method_repr, ref=False):
+    def method(self, class_repr, method_repr, use_refs=False):
         lines = []
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
             filter(lambda pair: pair[1] != "self",
-                   zip(map(lambda t: t.__name__ if t in primitive_map or not ref else "%s&" % t.__name__,
+                   zip(map(lambda t: self.get_type_label(t, use_refs),
                            method_repr.arg_types), method_repr.args))))
         if method_repr.is_constructor():
             lines.append("__device__ {class_name} ({args});".format(class_name=class_repr.name, args=arg_list))
@@ -86,8 +94,8 @@ class ClassDefGenerator:
         protos = []
         for method in class_repr.methods:
             # if the method has at least one arg not as a primitive type, then we need a ref version of the method
-            if len(list(filter(lambda arg: arg not in primitive_map, method.arg_types[1:]))) > 0:
-                protos.append(self.method(class_repr, method, ref=True))
+            if method.has_nonprimitive_args():
+                protos.append(self.method(class_repr, method, use_refs=True))
         return "\n".join(protos)
 
 

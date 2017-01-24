@@ -1,23 +1,13 @@
-import sys
+import sys, inspect
 
 class FunctionCall:
-    def __init__(self, cls, name, args, types):
+    def __init__(self, cls, name, args, types, function=None):
         self.cls = cls
         self.name = name
         self.args = args
         self.types = types
-        if cls:
-            self.function = next(map(lambda x: x[1], filter(lambda x: x[0] == name,
-                                        inspect.getmembers(types[0], lambda t: inspect.isfunction(t)))))
-        else:
-            self.function = self.get_func(name)
+        self.function = function
         self.return_type = None
-
-    def get_func(self, name):
-        vars = globals().copy()
-        vars.update(locals())
-        func = vars.get(name)
-        return func
 
     def set_return_type(self, _type):
         self.return_type = _type
@@ -53,6 +43,7 @@ class FunctionCallExaminer:
     def results(cls):
         return cls.calls.results
 
+
     def trace(self, frame, event, arg):
         name = frame.f_code.co_name
         arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
@@ -65,7 +56,13 @@ class FunctionCallExaminer:
 
         if event == "call":
             if (cls, name) not in self.prev_call:
-                call = FunctionCall(cls, name, arg_names, types)
+                if not cls:
+                    func = frame.f_globals[name]
+                else:
+                    func = next(map(lambda x: x[1], filter(lambda x: x[0] == name,
+                                        inspect.getmembers(types[0], lambda t: inspect.isfunction(t)))))
+                    print("found {}".format(func))
+                call = FunctionCall(cls, name, arg_names, types, func)
                 self.results.append(call)
                 self.prev_call[(cls, name)] = call
         elif event == "return":
@@ -79,7 +76,6 @@ def tracefunc(frame, event, arg):
 
 
 from test_util import TestClassA, TestClassB
-import inspect
 
 class RunFunctionCallExaminerTest:
     def test(self):

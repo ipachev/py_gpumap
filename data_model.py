@@ -83,6 +83,9 @@ class FunctionRepresentation:
         self.return_type = return_type
         self.func = func
 
+    def has_nonprimitive_args(self):
+        return len(list(filter(lambda t: t not in primitive_map, self.arg_types))) > 0
+
 class MethodRepresentation(FunctionRepresentation):
     def __init__(self, cls, *args):
         super().__init__(*args)
@@ -90,6 +93,9 @@ class MethodRepresentation(FunctionRepresentation):
 
     def is_constructor(self):
         return self.name == "__init__"
+
+    def has_nonprimitive_args(self):
+        return len(list(filter(lambda t: t not in primitive_map, self.arg_types[1:]))) > 0
 
     def __repr__(self):
         return "{}.{}".format(self.cls.__name__, self.name)
