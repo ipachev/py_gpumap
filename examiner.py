@@ -61,7 +61,7 @@ class FunctionCallExaminer:
                 else:
                     func = next(map(lambda x: x[1], filter(lambda x: x[0] == name,
                                         inspect.getmembers(types[0], lambda t: inspect.isfunction(t)))))
-                    print("found {}".format(func))
+                print("found {}".format(func))
                 call = FunctionCall(cls, name, arg_names, types, func)
                 self.results.append(call)
                 self.prev_call[(cls, name)] = call

@@ -19,7 +19,16 @@ class TestClassA:
 
 
 def get_remainder(num, dem):
-    return num % dem
+    if dem == 0:
+        return -1
+    elif num == 0:
+        return 0
+    elif num > 0:
+        while num > 0:
+            num -= dem
+        return dem + num
+    else:
+        return -1
 
 
 class TestClassB:

@@ -3,7 +3,6 @@ import ast, _ast, inspect
 from data_model import primitive_map
 from util import indent, dedent
 
-# todo: implement FunctionDefGenerator
 class FunctionDefGenerator:
     def __init__(self, all_function_calls, extracted_classes):
         # this is used for reference to determine type information
@@ -85,11 +84,16 @@ class FunctionConverter(ast.NodeVisitor):
         self.all_functions = all_functions
         self.all_classes = all_classes
         self.ast = None
+        self.indent_level = 0
 
-    def get_func(self, cls, name):
-        found = list(filter(lambda f: f.cls == cls and f.name == name))
-        assert len(found) == 1
-        return found[0]
+    def increase_indent(self):
+        self.indent_level += 1
+
+    def decrease_indent(self):
+        self.indent_level -= 1
+
+    def indent(self):
+        return indent(self.indent_level)
 
     def convert(self):
         print(self.func_repr.func)
@@ -203,8 +207,91 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_GtE(self, node):
         return " >= "
 
+    def visit_BoolOp(self, node):
+        output = self.visit(node.values[0])
+        for value in node.values[1:]:
+            output += self.visit(node.op) + self.visit(value)
+        output = "(" + output + ")"
+        return output
+
+    def visit_Pass(self, node):
+        return ""
+
     def visit_BinOp(self, node):
-        return self.visit(node.left) + self.visit(node.op) + self.visit(node.right)
+        return "(" + self.visit(node.left) + self.visit(node.op) + self.visit(node.right) + ")"
+
+    def visit_UnaryOp(self, node):
+        return self.visit(node.op) + self.visit(node.operand)
+
+    def visit_UAdd(self, node):
+        return "+"
+
+    def visit_USub(self, node):
+        return "-"
+
+    def visit_Not(self, node):
+        return "!"
+
+    def visit_Invert(self, node):
+        return "~"
+
+    def visit_NameConstant(self, node):
+        if node.value == True:
+            return "true"
+        elif node.value == False:
+            return "false"
+        else:
+            return "null"
+
+    def visit_IfExp(self, node):
+        return self.visit(node.test) + " ? " + self.visit(node.body) + " : " + self.visit(node.orelse)
+
+    def semicolon(self, stmt):
+        if not isinstance(stmt, _ast.If) and not isinstance(stmt, _ast.While):
+            return ";"
+        else:
+            return ""
+
+    def visit_Break(self, node):
+        return "break"
+
+    def visit_Continue(self, node):
+        return "continue"
+
+    def visit_Compare(self, node):
+        output = self.visit(node.left) + self.visit(node.ops[0]) + self.visit(node.comparators[0])
+        last_comp = node.comparators[0]
+
+        for op, comp in zip(node.ops[1:], node.comparators[1:]):
+            output += " && " + self.visit(last_comp) + self.visit(op) + self.visit(comp)
+            last_comp = comp
+        return output
+
+    def visit_While(self, node):
+        lines = []
+        lines.append("while (%s) {" % self.visit(node.test))
+        self.increase_indent()
+        for stmt in node.body:
+            lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+        self.decrease_indent()
+        lines.append(self.indent() + "}")
+        return "\n".join(lines)
+
+    def visit_If(self, node):
+        lines = []
+        lines.append("if (%s) {" % self.visit(node.test))
+        self.increase_indent()
+        for stmt in node.body:
+            line = self.indent() + self.visit(stmt) + self.semicolon(stmt)
+            lines.append(line)
+        self.decrease_indent()
+        lines.append(self.indent() + "} else {")
+        self.increase_indent()
+        for stmt in node.orelse:
+            lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+        self.decrease_indent()
+        lines.append(self.indent() + "}")
+        return "\n".join(lines)
 
     def visit_FunctionDef(self, node):
         arg_list = ", ".join(map(
@@ -218,14 +305,14 @@ class FunctionConverter(ast.NodeVisitor):
         else:
             return_type = self.func_repr.return_type.__name__
 
-        output = "__device__ %s %s(%s) {\n" % (return_type, func_name, arg_list)
         lines = []
+        lines.append("__device__ %s %s(%s) {" % (return_type, func_name, arg_list))
+        self.increase_indent()
         for n in node.body:
-            lines.append(indent(1) + self.visit(n) + ";")
-
-        output += "\n".join(lines)
-        output += "\n}\n"
-        return output
+            lines.append(self.indent() + self.visit(n) + self.semicolon(n))
+        self.decrease_indent()
+        lines.append("}\n")
+        return "\n".join(lines)
 
     def get_type_label(self, _type):
         if _type in primitive_map:
@@ -299,16 +386,14 @@ class MethodConverter(FunctionConverter):
                 return_type = self.method_repr.return_type.__name__
             return_type += " "
 
-        output = "__device__ %s%s::%s(%s) {\n" % (return_type,
+        lines = []
+        lines.append("__device__ %s%s::%s(%s) {" % (return_type,
                                                   self.class_repr.name,
                                                   method_name,
-                                                  arg_list)
-        lines = []
+                                                  arg_list))
         for n in node.body:
             lines.append(indent(1) + self.visit(n) + ";")
-
-        output += "\n".join(lines)
-        output += "\n}\n"
-        return output
+        lines.append("}\n")
+        return "\n".join(lines)
 
 
