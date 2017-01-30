@@ -9,7 +9,7 @@ import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
 
-class Main:
+class TestTranslation:
     def run(self):
         # create the test object
         test_obj = TestClassA(1,2,3, TestClassB(4,5,6))
@@ -28,16 +28,14 @@ class Main:
         func_reprs.add_functions(called_functions)
 
         cls_def_gen = ClassDefGenerator()
+
         kernel = cls_def_gen.all_cpp_class_defs(class_reprs)
 
-        # TODO: generate prototypes for functions
-        # TODO: generate function code for functions
-
-        fn_def_gen = FunctionDefGenerator(called_functions, class_reprs)
+        fn_def_gen = FunctionDefGenerator()
         kernel += fn_def_gen.all_func_protos(func_reprs) + "\n"
         kernel += fn_def_gen.all_func_defs(func_reprs)
 
-        method_gen = MethodDefGenerator(called_functions, class_reprs)
+        method_gen = MethodDefGenerator()
         for class_repr in class_reprs.classes.values():
             kernel += method_gen.all_method_defs(class_repr)
 
@@ -63,7 +61,7 @@ __global__ void stuff() {
         print(kernel)
         mod = SourceModule(kernel, options=["--std=c++11"], no_extern_c=True)
         stuff = mod.get_function("stuff")
-        stuff(block=(1,1,1))
+        stuff(block=(10,1,1))
 
 def do_stuff(o):
     o.increment_all(1)
@@ -72,4 +70,4 @@ def do_stuff(o):
 
 
 if __name__ == "__main__":
-    Main().run()
+    TestTranslation().run()

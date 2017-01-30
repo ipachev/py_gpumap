@@ -4,11 +4,6 @@ from data_model import primitive_map
 from util import indent, dedent
 
 class FunctionDefGenerator:
-    def __init__(self, all_function_calls, extracted_classes):
-        # this is used for reference to determine type information
-        self.all_function_calls = all_function_calls
-        self.extracted_classes = extracted_classes
-
     def get_type_label(self, _type, use_refs=False):
         if _type in primitive_map:
             return _type.__name__
@@ -19,7 +14,6 @@ class FunctionDefGenerator:
 
     def all_func_protos(self, func_reprs):
         lines = []
-
         for func_repr in func_reprs.functions.values():
             line = self.create_proto(func_repr) + "\n"
             lines.append(line)
@@ -47,42 +41,38 @@ class FunctionDefGenerator:
     def all_func_defs(self, func_reprs):
         lines = []
         for func_repr in func_reprs.functions.values():
-            func_conv = FunctionConverter(func_repr, self.all_function_calls, self.extracted_classes)
+            func_conv = FunctionConverter(func_repr)
             lines.append(func_conv.convert())
 
             if func_repr.has_nonprimitive_args():
-                func_conv = FunctionConverter(func_repr, self.all_function_calls, self.extracted_classes, True)
+                func_conv = FunctionConverter(func_repr, True)
                 lines.append(func_conv.convert())
 
         return "\n".join(lines)
 
 
 class MethodDefGenerator(FunctionDefGenerator):
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self):
+        super().__init__()
 
     def all_method_defs(self, class_repr):
         method_outputs = []
         for method_repr in class_repr.methods:
-            converter = MethodConverter(class_repr, method_repr, self.all_function_calls, self.extracted_classes.classes.keys())
+            converter = MethodConverter(class_repr, method_repr)
             method_output = converter.convert()
             method_outputs.append(method_output)
             if method_repr.has_nonprimitive_args():
-                converter = MethodConverter(class_repr, method_repr, self.all_function_calls,
-                                        self.extracted_classes.classes.keys(), True)
+                converter = MethodConverter(class_repr, method_repr, True)
                 method_output = converter.convert()
                 method_outputs.append(method_output)
         return "\n".join(method_outputs) + "\n"
 
 class FunctionConverter(ast.NodeVisitor):
-    def __init__(self, func_repr, all_functions, all_classes, use_refs=False):
+    def __init__(self, func_repr, use_refs=False):
         self.func_repr = func_repr
         self.use_refs = use_refs
         # local vars store the types of all the local vars
         self.local_vars = {}
-        # function list is used for type reference when functions or methods are called
-        self.all_functions = all_functions
-        self.all_classes = all_classes
         self.ast = None
         self.indent_level = 0
 
@@ -96,7 +86,6 @@ class FunctionConverter(ast.NodeVisitor):
         return indent(self.indent_level)
 
     def convert(self):
-        print(self.func_repr.func)
         source = inspect.getsource(self.func_repr.func)
         self.ast = ast.parse(source)
         # put args as local vars
@@ -106,7 +95,7 @@ class FunctionConverter(ast.NodeVisitor):
         return out
 
     def visit(self, node):
-        print("visiting {}".format(node))
+        #print("visiting {}".format(node))
         return super().visit(node)
 
     def visit_Module(self, node):
@@ -163,6 +152,9 @@ class FunctionConverter(ast.NodeVisitor):
         return " * "
 
     def visit_Div(self, node):
+        return " / "
+
+    def  visit_FloorDiv(self, node):
         return " / "
 
     def visit_Mod(self, node):

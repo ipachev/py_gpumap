@@ -1,5 +1,6 @@
 from util import indent
-from data_model import ClassRepresentation, primitive_map
+
+from data_model import primitive_map, ClassRepresentation
 
 from collections import defaultdict
 
@@ -103,6 +104,6 @@ class ClassDefGenerator:
         lines = []
         lines.append("__device__ %s(const %s& other) {" % (class_repr.name, class_repr.name))
         for field in class_repr.field_names:
-            lines.append(indent(1) + "(*this).%s = %s;" % (field, field))
+            lines.append(indent(1) + "(*this).%s = other.%s;" % (field, field))
         lines.append("};")
         return "\n".join(map(lambda l: indent(2) + l, lines))

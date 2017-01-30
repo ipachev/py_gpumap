@@ -1,4 +1,5 @@
 import sys, inspect
+from util import time_func
 
 class FunctionCall:
     def __init__(self, cls, name, args, types, function=None):
@@ -18,6 +19,7 @@ class FunctionCall:
     def __str__(self):
         return str((self.cls, self.name, self.args, self.types, self.return_type, self.function))
 
+from util import time_func
 
 class FunctionCallExaminer:
     calls = None
@@ -33,6 +35,7 @@ class FunctionCallExaminer:
 
     @classmethod
     def runfunc(cls, func, *args):
+        print("running func")
         FunctionCallExaminer.get().results = []
         sys.settrace(tracefunc)
         ret_val = func(*args)
@@ -43,35 +46,40 @@ class FunctionCallExaminer:
     def results(cls):
         return cls.calls.results
 
-
     def trace(self, frame, event, arg):
         name = frame.f_code.co_name
-        arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
-        types = [type(frame.f_locals[var]) for var in arg_names]
-        assert len(arg_names) == len(types)
-        cls = None
-        if len(arg_names) > 0 and arg_names[0] == "self":
-            # this is a method
-            cls = types[0]
+        is_method = "self" in frame.f_locals
+        curr_obj = None
+        if is_method:
+            curr_obj = frame.f_locals["self"]
+            cls = type(curr_obj)
+        else:
+            cls = None
 
         if event == "call":
             if (cls, name) not in self.prev_call:
-                if not cls:
-                    func = frame.f_globals[name]
+                arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
+                types = [type(frame.f_locals[var]) for var in arg_names]
+                if is_method:
+                    func = getattr(curr_obj, name)
                 else:
-                    func = next(map(lambda x: x[1], filter(lambda x: x[0] == name,
-                                        inspect.getmembers(types[0], lambda t: inspect.isfunction(t)))))
+                    func = frame.f_globals[name]
+
                 print("found {}".format(func))
                 call = FunctionCall(cls, name, arg_names, types, func)
                 self.results.append(call)
                 self.prev_call[(cls, name)] = call
         elif event == "return":
-            self.prev_call[(cls, name)].set_return_type(type(arg))
+            prev_call = self.prev_call[(cls, name)]
+            if not prev_call.return_type:
+                prev_call.set_return_type(type(arg))
 
 
 
 def tracefunc(frame, event, arg):
-    FunctionCallExaminer.get().trace(frame, event, arg)
+    trace = FunctionCallExaminer.get().trace
+    #time_func("trace_func", trace, frame, event, arg)
+    trace(frame, event, arg)
     return tracefunc
 
 

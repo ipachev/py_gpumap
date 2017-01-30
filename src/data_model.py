@@ -1,6 +1,5 @@
 primitive_map = {int: "i", float: "f"}
 
-
 class Functions:
     def __init__(self):
         self.functions = {}
@@ -59,6 +58,7 @@ class ClassRepresentation:
         self.field_names = field_names
         self.field_types = field_types
         self.methods = []
+        assert len(field_names) == len(field_types)
 
     def get_format(self):
         fmt = "".join(map(lambda t: t.get_format() if isinstance(t, ClassRepresentation) else primitive_map[t],
