@@ -295,16 +295,11 @@ class FunctionConverter(ast.NodeVisitor):
             else:
                 raise Exception("bad usage of range")
 
-            arg_str = ", ".join([start, stop, step])
-
-
-            #todo : rearrange args if theres many of them
+            arg_str = ", ".join((start, stop, step))
             lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
+            lines.append(self.indent() + "for (int {target}; {iter}.has_next();) {{".format(target=target, iter=this_iterator))
             self.increase_indent()
-            lines.append(self.indent() + "int %s;" % target)
-            lines.append(self.indent() + "while (%s.has_next()) {" % this_iterator)
-            self.increase_indent()
-            lines.append(self.indent() + "%s = %s.next();" % (target, this_iterator))
+            lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
             for stmt in node.body:
                 lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
             self.decrease_indent()

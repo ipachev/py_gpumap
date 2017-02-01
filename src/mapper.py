@@ -66,7 +66,10 @@ class MapperKernel:
     def _build_module(self):
         kernel = time_func("code generator", self._build_kernel)
         current_dir = os.path.dirname(os.path.realpath(__file__))
-        self.source_module = SourceModule(kernel, options=["--std=c++11"], no_extern_c=True, include_dirs=[current_dir])
+        options = []
+        options.append("--std=c++11")
+        options.append("-Wno-deprecated-gpu-targets")
+        self.source_module = SourceModule(kernel, options=options, no_extern_c=True, include_dirs=[current_dir])
         self.func = self.source_module.get_function("map_kernel")
 
     def get_func(self):
