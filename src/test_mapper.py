@@ -4,17 +4,17 @@ from test_util import TestClassA, TestClassB
 
 import random
 import pickle
+import math
 
 from util import time_func
 
 
 class TestMapper:
     def __init__(self):
-        self.items = []
-        for i in range(10000):
-            item = TestClassA(random.randint(0,30), random.randint(0,30), random.randint(0,30),
-                              TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
-            self.items.append(item)
+        self.items = [TestClassA(random.randint(0,30), random.randint(0,30), random.randint(0,30),
+                      TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
+                      for _ in range(1000)]
+
 
     def test_map(self):
         items_copy = pickle.loads(pickle.dumps(self.items))
@@ -62,7 +62,10 @@ def primitive_thing(n):
 
 
 def thing(a):
-    for i in range(10000):
+    upper = 20000
+    step = 2
+    x = math.floor(step)
+    for i in range(0, upper, step):
         a.increment_all(1)
     b = TestClassA(a.a, a.a + a.b, a.a + a.b + a.c, TestClassB(a.o.x, a.o.x + a.o.y, a.o.x + a.o.y + a.o.z))
     for i in range(10000):

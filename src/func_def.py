@@ -1,6 +1,6 @@
 import ast, _ast, inspect
 
-from data_model import primitive_map
+from data_model import primitive_map, built_in_functions
 from util import indent, dedent
 
 class FunctionDefGenerator:
@@ -96,7 +96,6 @@ class FunctionConverter(ast.NodeVisitor):
         return out
 
     def visit(self, node):
-        #print("visiting {}".format(node))
         return super().visit(node)
 
     def visit_Module(self, node):
@@ -131,7 +130,19 @@ class FunctionConverter(ast.NodeVisitor):
         return output
 
     def visit_Call(self, node):
-        return self.visit(node.func) + "(" + ", ".join(map(lambda a: self.visit(a), node.args)) + ")"
+        name = self.visit(node.func)
+        split_name = name.split(".")
+        found = True
+        func = built_in_functions
+        for piece in split_name:
+            if piece not in func:
+                found = False
+            else:
+                func = func[piece]
+        if found and isinstance(func, str):
+            name = func
+
+        return name + "(" + ", ".join(map(lambda a: self.visit(a), node.args)) + ")"
 
     def visit_AugAssign(self, node):
         target = self.visit(node.target)
@@ -422,8 +433,10 @@ class MethodConverter(FunctionConverter):
                                                   self.class_repr.name,
                                                   method_name,
                                                   arg_list))
+        self.increase_indent()
         for n in node.body:
-            lines.append(indent(1) + self.visit(n) + ";")
+            lines.append(self.indent() + self.visit(n) + ";")
+        self.decrease_indent()
         lines.append("}\n")
         return "\n".join(lines)
 
