@@ -1,10 +1,61 @@
 # Transparently gpu-accelerated batch operations on lists of homogeneous python objects!
 
 This is part of the work I'm doing for my thesis.
-I'm trying to create a gpu-acclerated map function that works with relatively simple functions and objects.
+I'm trying to create a gpu-accelerated map function that works with relatively simple functions and objects.
 The goal is to allow programmers to create a list of homogenous, arbitrarily nested simple python objects and apply a function to each element in the list!
 
-This depends on pycuda!
+This depends on pycuda and numpy!
+
+## Guide:
+
+### Map:
+
+* `from mapper import gpumap`
+* define a non-lambda function f
+* create a list L of objects
+* `result_list = gpumap(f, L)``
+
+### Filter:
+
+* `from filterer import gpufilter`
+* define a non-lambda function f that returns a boolean describing whether or not to include an item
+* create a list L of objects
+* filtered_list = gpufilter(f, L)
+
+## Limitations:
+
+* Functions must have the same arg types and return type every time they are called
+* Returning None is not (yet) supported
+* Multiple objects in the input list must not contain references to the same objects
+* Objects can only contain other objects, floats, or ints.
+* Assignments into an existing variable must be of the same type!
+* Strings, lists, and dicts are not yet supported
+* The only types of for loops are `for ... in range(...)`
+* Probably some other stuff I'm leaving out...
+* Builtin functions are not implemented
+
+I currently don't make use of CUDA thread-level dynamic allocation, but using it makes it possible to support much more complex language features!
+Some of these language features that could use dynamic allocation include lists, dicts, and strings!
+Hopefully the performance isn't too bad!
+
+## Supported Language Features
+
+* function calls
+* method calls
+* constructor calls
+* augmented assignment
+* boolean operations
+* if statements
+* while loops
+* for ... range(...) loops
+* break and continue
+* mathematical operators except `**`
+* comparison operators on integers, floats, and booleans
+* unary operators !, -, +, ~
+* turnary expression (`a if b else c`)
+* (coming soon) mathematical functions such as sqrt, log, etc
+* probably some more stuff i'm leaving out
+
 
 ## How does it work?
 
@@ -21,6 +72,5 @@ Suppose you have a function f, a list L, and L' = map(f, L)
 
 ## Warning:
 
-This is unfinished!!!!!!
-The python->cuda translator is working but(de)serialization is not yet working!
-The performance of this probably won't be too great, but I'm sure there's a lot of optimizations to be made!
+This is not very refined but it does seem to work for limited types of python syntax and simple objects!
+It also seems to give a decent performance boost when it actually works!
