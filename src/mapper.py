@@ -8,7 +8,7 @@ from func_def import FunctionDefGenerator, MethodDefGenerator
 from pycuda import autoinit
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
-
+import os
 from util import time_func
 import numpy
 
@@ -25,7 +25,6 @@ __global__ void map_kernel({in_type} *in, {out_type} *out, int length) {{
 }}
 """
 
-
 class MapperKernel:
     def __init__(self, classes, functions, entry_point):
         self.classes = classes
@@ -33,11 +32,20 @@ class MapperKernel:
         self.source_module = None
         self.func = None
         self.entry_point = entry_point
+        self.includes = ["builtin.hpp"]
+
+    def _create_includes(self):
+        lines = []
+        for include in self.includes:
+            lines.append("#include \"%s\"" % include)
+        return "\n".join(lines) + "\n"
 
     def _build_kernel(self):
         cls_def_gen = ClassDefGenerator()
 
-        kernel = cls_def_gen.all_cpp_class_defs(self.classes)
+        kernel = self._create_includes() + "\n"
+
+        kernel += cls_def_gen.all_cpp_class_defs(self.classes)
 
         fn_def_gen = FunctionDefGenerator()
         kernel += fn_def_gen.all_func_protos(self.functions) + "\n"
@@ -57,7 +65,8 @@ class MapperKernel:
 
     def _build_module(self):
         kernel = time_func("code generator", self._build_kernel)
-        self.source_module = SourceModule(kernel, options=["--std=c++11"], no_extern_c=True)
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        self.source_module = SourceModule(kernel, options=["--std=c++11"], no_extern_c=True, include_dirs=[current_dir])
         self.func = self.source_module.get_function("map_kernel")
 
     def get_func(self):

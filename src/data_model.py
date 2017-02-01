@@ -1,4 +1,5 @@
-primitive_map = {int: "i", float: "f"}
+primitive_map = {int: "i", float: "f", bool: "?"}
+primitive_map[type(None)] = "P"
 
 class Functions:
     def __init__(self):

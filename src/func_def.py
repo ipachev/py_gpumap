@@ -75,6 +75,7 @@ class FunctionConverter(ast.NodeVisitor):
         self.local_vars = {}
         self.ast = None
         self.indent_level = 0
+        self.iter_counter = 0
 
     def increase_indent(self):
         self.indent_level += 1
@@ -239,7 +240,7 @@ class FunctionConverter(ast.NodeVisitor):
         return self.visit(node.test) + " ? " + self.visit(node.body) + " : " + self.visit(node.orelse)
 
     def semicolon(self, stmt):
-        if not isinstance(stmt, _ast.If) and not isinstance(stmt, _ast.While):
+        if not isinstance(stmt, _ast.If) and not isinstance(stmt, _ast.While) and not isinstance(stmt, _ast.For):
             return ";"
         else:
             return ""
@@ -268,6 +269,49 @@ class FunctionConverter(ast.NodeVisitor):
         self.decrease_indent()
         lines.append(self.indent() + "}")
         return "\n".join(lines)
+
+    def visit_For(self, node):
+        if isinstance(node.iter, _ast.Call) and isinstance(node.iter.func, _ast.Name) and node.iter.func.id == "range":
+            lines = []
+            self.iter_counter += 1
+            this_iterator = "__iterator_%d" % self.iter_counter
+            if isinstance(node.target, _ast.Name):
+                target = node.target.id
+            else:
+                raise Exception("Only one variable can be assigned in a for loop!")
+
+            start = "0"
+            step = "1"
+            args_len = len(node.iter.args)
+            if args_len == 1:
+                stop = self.visit(node.iter.args[0])
+            elif args_len == 2:
+                start = self.visit(node.iter.args[0])
+                stop = self.visit(node.iter.args[1])
+            elif args_len == 3:
+                start = self.visit(node.iter.args[0])
+                stop = self.visit(node.iter.args[1])
+                step = self.visit(node.iter.args[2])
+            else:
+                raise Exception("bad usage of range")
+
+            arg_str = ", ".join([start, stop, step])
+
+
+            #todo : rearrange args if theres many of them
+            lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
+            self.increase_indent()
+            lines.append(self.indent() + "int %s;" % target)
+            lines.append(self.indent() + "while (%s.has_next()) {" % this_iterator)
+            self.increase_indent()
+            lines.append(self.indent() + "%s = %s.next();" % (target, this_iterator))
+            for stmt in node.body:
+                lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+            self.decrease_indent()
+            lines.append(self.indent() + "}")
+            return "\n".join(lines)
+        else:
+            raise Exception("Only for ... in range(...) is supported!")
 
     def visit_If(self, node):
         lines = []

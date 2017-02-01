@@ -1,13 +1,12 @@
 from data_model import ClassRepresentation, primitive_map
 from util import time_func
-from collections import deque
 
 import struct
 import pickle
 
 class ListSerializer:
     def __init__(self, class_repr, _list=None, length=None):
-        self._list = deque(_list)
+        self._list = _list
         self.class_repr = class_repr
         self.length = len(_list) if _list is not None else length
         self.format = self.get_format(class_repr, self.length)

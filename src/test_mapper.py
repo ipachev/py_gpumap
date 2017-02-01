@@ -8,19 +8,17 @@ import pickle
 from util import time_func
 
 
-
 class TestMapper:
     def __init__(self):
         self.items = []
-        for i in range(10000000):
-            item = TestClassA(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11),
-                             TestClassB(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11)))
+        for i in range(100000):
+            item = TestClassA(random.randint(0,30), random.randint(0,30), random.randint(0,30),
+                              TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
             self.items.append(item)
 
     def test_map(self):
         items_copy = pickle.loads(pickle.dumps(self.items))
         out_list = time_func("GPUMAP", mapper.gpumap, thing, self.items)
-
 
         for i, (initial, modified, out) in enumerate(zip(items_copy, self.items, out_list)):
             assert initial.a + 1000 == modified.a
@@ -38,13 +36,13 @@ class TestMapper:
             assert modified.o.x + modified.o.y + 1000 == out.o.y
             assert modified.o.x + modified.o.y + modified.o.z + 1000 == out.o.z
 
-        out_list2 = time_func("normal map", map, thing, items_copy)
+        out_list2 = time_func("normal map", list, map(thing, items_copy))
 
     def test_map_primitives(self):
         print("primitives:")
-        items = [random.randint(0, 10) for _ in range(1000)]
+        items = [random.randint(0, 30) for _ in range(10000)]
         out_list = time_func("GPUMAP", mapper.gpumap, primitive_thing, items)
-        out_list2 = time_func("normal map", map, thing, items)
+        out_list2 = time_func("normal map", list, map(primitive_thing, items))
 
 
 def primitive_thing(n):
