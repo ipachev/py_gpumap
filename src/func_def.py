@@ -95,9 +95,6 @@ class FunctionConverter(ast.NodeVisitor):
         out = self.visit(self.ast)
         return out
 
-    def visit(self, node):
-        return super().visit(node)
-
     def visit_Module(self, node):
         return self.visit(node.body[0])
 

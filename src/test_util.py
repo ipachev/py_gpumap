@@ -21,32 +21,6 @@ class TestClassA:
         self.o.increment_all(TestClassB(1, 2, n // 2 + r))
 
 
-class TestClassShallow:
-    def __init__(self, a,b,c,d,e,f,g,h,i,j):
-        self.a = a
-        self.b = b
-        self.c = c
-        self.d = d
-        self.e = e
-        self.f = f
-        self.g = g
-        self.h = h
-        self.i = i
-        self.j = j
-
-    def increment_all(self, n):
-        self.a += 1
-        self.b += 1
-        self.c += 1
-        self.d += 1
-        self.e += 1
-        self.f += 1
-        self.g += 1
-        self.h += 1
-        self.i += 1
-        self.j += 1
-
-
 def get_remainder(num, dem):
     if dem == 0:
         return -1

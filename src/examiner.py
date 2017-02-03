@@ -25,6 +25,7 @@ class FunctionCallExaminer:
     def __init__(self):
         self.results = []
         self.prev_call = {}
+        self.top_level_func = None
 
     @classmethod
     def get(cls):
@@ -35,6 +36,7 @@ class FunctionCallExaminer:
     @classmethod
     def runfunc(cls, func, *args):
         FunctionCallExaminer.get().results = []
+        FunctionCallExaminer.get().top_level_func = func
         sys.settrace(tracefunc)
         ret_val = func(*args)
         sys.settrace(None)
@@ -59,7 +61,11 @@ class FunctionCallExaminer:
                 if is_method:
                     func = getattr(curr_obj, name)
                 else:
-                    func = frame.f_globals[name]
+                    try:
+                        func = frame.f_globals[name]
+                    except:
+                        # hack to make spark work
+                        func = self.top_level_func
 
                 if not isinstance(func, BuiltinFunctionType):
                     arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
