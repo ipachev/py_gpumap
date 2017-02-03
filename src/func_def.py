@@ -222,7 +222,7 @@ class FunctionConverter(ast.NodeVisitor):
         return "(" + self.visit(node.left) + self.visit(node.op) + self.visit(node.right) + ")"
 
     def visit_UnaryOp(self, node):
-        return self.visit(node.op) + self.visit(node.operand)
+        return "(" + self.visit(node.op) + self.visit(node.operand) + ")"
 
     def visit_UAdd(self, node):
         return "+"
@@ -245,7 +245,7 @@ class FunctionConverter(ast.NodeVisitor):
             return "null"
 
     def visit_IfExp(self, node):
-        return self.visit(node.test) + " ? " + self.visit(node.body) + " : " + self.visit(node.orelse)
+        return "(" + self.visit(node.test) + " ? " + self.visit(node.body) + " : " + self.visit(node.orelse) + ")"
 
     def semicolon(self, stmt):
         if not isinstance(stmt, _ast.If) and not isinstance(stmt, _ast.While) and not isinstance(stmt, _ast.For):
@@ -266,7 +266,7 @@ class FunctionConverter(ast.NodeVisitor):
         for op, comp in zip(node.ops[1:], node.comparators[1:]):
             output += " && " + self.visit(last_comp) + self.visit(op) + self.visit(comp)
             last_comp = comp
-        return output
+        return "(" + output + ")"
 
     def visit_While(self, node):
         lines = []
@@ -391,7 +391,7 @@ class MethodConverter(FunctionConverter):
         output = ""
         if isinstance(target, _ast.Attribute) and isinstance(target.value, _ast.Name) and target.value.id == "self":
             if target.attr not in self.class_repr.field_names:
-                raise Exception("All fields must be declared in the constructor prior to assignment!")
+                raise Exception("All fields must be declared and assigned in the constructor prior to re-assignment!")
             output += self.visit(target)
 
         # assignment into variable
@@ -402,7 +402,6 @@ class MethodConverter(FunctionConverter):
                 output += "auto "
                 self.local_vars[target.id] = None
             output += self.visit(target)
-
         output += " = " + self.visit(node.value)
         return output
 
