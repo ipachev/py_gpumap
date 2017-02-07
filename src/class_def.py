@@ -4,6 +4,7 @@ from data_model import primitive_map, ClassRepresentation
 
 from collections import defaultdict
 
+
 class ClassDefGenerator:
 
     def _calc_dependencies(self, extracted_classes):

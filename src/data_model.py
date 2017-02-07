@@ -1,5 +1,6 @@
 primitive_map = {int: "i", float: "f", bool: "?"}
 built_in_functions = {
+    "len": "len",
     "math": {
         "sin": "sinf",
         "cos": "cosf",

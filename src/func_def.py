@@ -3,15 +3,18 @@ import ast, _ast, inspect
 from data_model import primitive_map, built_in_functions
 from util import indent, dedent
 
-class FunctionDefGenerator:
-    def get_type_label(self, _type, use_refs=False):
-        if _type in primitive_map:
-            return _type.__name__
-        elif use_refs:
-            return _type.__name__ + "&"
-        else:
-            return _type.__name__ + "&&"
 
+def get_type_label(_type, use_refs=False):
+    name = _type if isinstance(_type, str) else _type.__name__
+    if _type in primitive_map:
+        return name
+    elif use_refs:
+        return name + "&"
+    else:
+        return name + "&&"
+
+
+class FunctionDefGenerator:
     def all_func_protos(self, func_reprs):
         lines = []
         for func_repr in func_reprs.functions.values():
@@ -31,7 +34,7 @@ class FunctionDefGenerator:
 
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
-            zip(map(lambda t: self.get_type_label(t, use_ref),
+            zip(map(lambda t: get_type_label(t, use_ref),
                     func_repr.arg_types), func_repr.args)))
         line = "__device__ {return_type} {name}({arg_list});".format(return_type=return_type,
                                                                      name=func_repr.name,
@@ -88,7 +91,12 @@ class FunctionConverter(ast.NodeVisitor):
 
     def convert(self):
         source = inspect.getsource(self.func_repr.func)
+
+        #hack to remove indentation
+        while source[0] == " ":
+            source = dedent(source)
         self.ast = ast.parse(source)
+
         # put args as local vars
         for arg, _type in zip(self.func_repr.args, self.func_repr.arg_types):
             self.local_vars[arg] = _type
@@ -111,17 +119,15 @@ class FunctionConverter(ast.NodeVisitor):
         target = node.targets[0]
         # assignment into object field
         output = ""
-        if isinstance(target, _ast.Attribute):
-            output += self.visit(target)
 
         # assignment into variable
-        elif isinstance(target, _ast.Name):
+        if isinstance(target, _ast.Name):
             # assignment into new variable
             # not sure about the type just yet..
             if target.id not in self.local_vars:
                 output += "auto "
                 self.local_vars[target.id] = None
-            output += self.visit(target)
+        output += self.visit(target)
 
         output += " = " + self.visit(node.value)
         return output
@@ -140,6 +146,18 @@ class FunctionConverter(ast.NodeVisitor):
             name = func
 
         return name + "(" + ", ".join(map(lambda a: self.visit(a), node.args)) + ")"
+
+    def visit_Subscript(self, node):
+        return self.visit(node.value) + ".items" + self.visit(node.slice)
+
+    def visit_Index(self, node):
+        return "[" + self.visit(node.value) + "]"
+
+    def visit_Slice(self, node):
+        raise Exception("list slice not supported")
+
+    def visit_ExtSlice(self, node):
+        raise Exception("list slice not supported")
 
     def visit_AugAssign(self, node):
         target = self.visit(node.target)
@@ -279,42 +297,83 @@ class FunctionConverter(ast.NodeVisitor):
         return "\n".join(lines)
 
     def visit_For(self, node):
-        if isinstance(node.iter, _ast.Call) and isinstance(node.iter.func, _ast.Name) and node.iter.func.id == "range":
-            lines = []
-            self.iter_counter += 1
-            this_iterator = "__iterator_%d" % self.iter_counter
-            if isinstance(node.target, _ast.Name):
-                target = node.target.id
-            else:
-                raise Exception("Only one variable can be assigned in a for loop!")
+        if isinstance(node.target, _ast.Name):
+            target = node.target.id
+            if isinstance(node.iter, _ast.Call) and isinstance(node.iter.func, _ast.Name):
+                if node.iter.func.id == "range":
+                    return self.for_range(node, target)
+                else:
+                    raise Exception("Only for ... in range(...) is supported!")
 
-            start = "0"
-            step = "1"
-            args_len = len(node.iter.args)
-            if args_len == 1:
-                stop = self.visit(node.iter.args[0])
-            elif args_len == 2:
-                start = self.visit(node.iter.args[0])
-                stop = self.visit(node.iter.args[1])
-            elif args_len == 3:
-                start = self.visit(node.iter.args[0])
-                stop = self.visit(node.iter.args[1])
-                step = self.visit(node.iter.args[2])
-            else:
-                raise Exception("bad usage of range")
-
-            arg_str = ", ".join((start, stop, step))
-            lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
-            lines.append(self.indent() + "for (int {target}; {iter}.has_next();) {{".format(target=target, iter=this_iterator))
-            self.increase_indent()
-            lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
-            for stmt in node.body:
-                lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
-            self.decrease_indent()
-            lines.append(self.indent() + "}")
-            return "\n".join(lines)
+            elif isinstance(node.iter, _ast.Name):
+                if node.iter.id in self.local_vars:
+                    var_type = self.local_vars[node.iter.id]
+                    if isinstance(var_type, str) and var_type.startswith("List<"):
+                        list_type = var_type[var_type.find("<") + 1: var_type.rfind(">")]
+                        return self.for_list(node, list_type, target)
+                    else:
+                        raise Exception("cannot iterate over a non-list type")
+                else:
+                    raise Exception("no such variable found: " + node.iter.id)
         else:
-            raise Exception("Only for ... in range(...) is supported!")
+            raise Exception("Only one variable can be assigned in a for loop!")
+
+
+
+    def for_list(self, node, list_type, target):
+        lines = []
+        self.iter_counter += 1
+        this_iterator = "__iterator_%d" % self.iter_counter
+        lines.append("auto %s = ListIterator<%s>(%s);" % (this_iterator, list_type, node.iter.id))
+        lines.append(self.indent() + "if ({this_iterator}.has_next()) {{".format(this_iterator=this_iterator))
+        self.increase_indent()
+        lines.append(
+            self.indent() +
+            "for ({list_type} &{target} = {iter}.next(); {iter}.has_next();) {{".format(list_type=list_type,
+                                                                                        target=target,
+                                                                                        iter=this_iterator))
+        self.increase_indent()
+        lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
+        for stmt in node.body:
+            lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+        self.decrease_indent()
+        lines.append(self.indent() + "}")
+        self.decrease_indent()
+        lines.append(self.indent() + "}")
+        return "\n".join(lines)
+
+    def for_range(self, node, target):
+        lines = []
+        self.iter_counter += 1
+        this_iterator = "__iterator_%d" % self.iter_counter
+
+
+        start = "0"
+        step = "1"
+        args_len = len(node.iter.args)
+        if args_len == 1:
+            stop = self.visit(node.iter.args[0])
+        elif args_len == 2:
+            start = self.visit(node.iter.args[0])
+            stop = self.visit(node.iter.args[1])
+        elif args_len == 3:
+            start = self.visit(node.iter.args[0])
+            stop = self.visit(node.iter.args[1])
+            step = self.visit(node.iter.args[2])
+        else:
+            raise Exception("bad usage of range")
+
+        arg_str = ", ".join((start, stop, step))
+        lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
+        lines.append(
+            self.indent() + "for (int {target}; {iter}.has_next();) {{".format(target=target, iter=this_iterator))
+        self.increase_indent()
+        lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
+        for stmt in node.body:
+            lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+        self.decrease_indent()
+        lines.append(self.indent() + "}")
+        return "\n".join(lines)
 
     def visit_If(self, node):
         lines = []
@@ -335,7 +394,7 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
-               zip(map(lambda t: self.get_type_label(t),
+               zip(map(lambda t: get_type_label(t, self.use_refs),
                        self.func_repr.arg_types), self.func_repr.args)))
 
         func_name = self.func_repr.name
@@ -353,14 +412,6 @@ class FunctionConverter(ast.NodeVisitor):
         lines.append("}\n")
         return "\n".join(lines)
 
-    def get_type_label(self, _type):
-        if _type in primitive_map:
-            return _type.__name__
-        elif self.use_refs:
-            return _type.__name__ + "&"
-        else:
-            return _type.__name__ + "&&"
-
 
 class MethodConverter(FunctionConverter):
     def __init__(self, class_repr, method_repr, *args):
@@ -371,7 +422,7 @@ class MethodConverter(FunctionConverter):
         self.method_repr = method_repr
 
     def convert(self):
-        source = "\n".join(dedent(inspect.getsource(self.func_repr.func)))
+        source = dedent(inspect.getsource(self.func_repr.func))
         self.ast = ast.parse(source)
         # put args as local vars
         for arg, _type in zip(self.method_repr.args, self.method_repr.arg_types):
@@ -410,7 +461,7 @@ class MethodConverter(FunctionConverter):
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
             filter(lambda pair: pair[1] != "self",
-                   zip(map(lambda t: self.get_type_label(t),
+                   zip(map(lambda t: get_type_label(t, self.use_refs),
                            self.method_repr.arg_types), self.method_repr.args))))
 
         if self.method_repr.is_constructor():

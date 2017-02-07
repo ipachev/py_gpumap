@@ -117,13 +117,17 @@ class TestSerialization:
 
         cls_def_gen = ClassDefGenerator()
 
-        kernel = cls_def_gen.all_cpp_class_defs(class_reprs) + """
+        with open("builtin.hpp", "r") as f:
+            builtin_src = f.read()
+            f.close()
+
+        kernel = cls_def_gen.all_cpp_class_defs(class_reprs) + builtin_src + """
 extern "C" {
-__global__ void stuff(TestClassA *things) {
-  int val = things[threadIdx.x].a;
-  int val2 = things[threadIdx.x].b;
-  int val3 = things[threadIdx.x].o.x;
-  things[threadIdx.x].o.x = val * val2 * val3;
+__global__ void stuff(List<TestClassA> *things) {
+  int val = things->items[threadIdx.x].a;
+  int val2 = things->items[threadIdx.x].b;
+  int val3 = things->items[threadIdx.x].o.x;
+  things->items[threadIdx.x].o.x = val * val2 * val3;
 }
 }
 """

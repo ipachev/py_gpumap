@@ -4,6 +4,7 @@ from util import time_func
 import struct
 import pickle
 
+
 class ListSerializer:
     def __init__(self, class_repr, _list=None, length=None):
         self._list = _list
@@ -16,14 +17,14 @@ class ListSerializer:
             format = primitive_map[class_repr]
         else:
             format = class_repr.get_format()
-        return format * length
+        return "i" + format * length
 
     @staticmethod
     def get_data_items(_list, class_repr):
         if not isinstance(class_repr, ClassRepresentation):
-            return _list
+            return [len(_list)] +_list
         else:
-            data_items = []
+            data_items = [len(_list)] # first part of a list struct is its length
             for item in _list:
                 ListSerializer._extract_inner_data(item, class_repr, data_items)
             return data_items
@@ -42,13 +43,13 @@ class ListSerializer:
 
     @staticmethod
     def project_size(class_repr, candidate_obj, list_length):
-        data_items = ListSerializer.get_data_items([candidate_obj], class_repr)
+        data_items = ListSerializer.get_data_items([candidate_obj], class_repr)[1:]
         format = primitive_map[class_repr] if class_repr in primitive_map else class_repr.get_format()
-        return len(struct.pack(format, *data_items)) * list_length
+        return len(struct.pack("i", 0)) + len(struct.pack(format, *data_items)) * list_length
 
     def from_bytes(self, _bytes):
         # unpacks into the same objects
-        data_items = list(struct.unpack(self.format, _bytes))
+        data_items = list(struct.unpack(self.format, _bytes))[1:] # skip list length
         if not isinstance(self.class_repr, ClassRepresentation):
             return data_items
         else:
@@ -61,7 +62,7 @@ class ListSerializer:
     def create_output_list(self, _bytes, sample_object):
         # unpacks into a new list
         format = self.get_format(self.class_repr, self.length)
-        data_items = list(struct.unpack(format, _bytes))
+        data_items = list(struct.unpack(format, _bytes))[1:] # skip list length
         if not isinstance(self.class_repr, ClassRepresentation):
             return data_items
         else:
@@ -69,7 +70,7 @@ class ListSerializer:
             self.data_items_unpacked = 0
             sample_obj_str = pickle.dumps(sample_object)
             for i in range(self.length):
-                new_obj = pickle.loads(sample_obj_str)
+                new_obj = pickle.loads(sample_obj_str) # faster than deepcopy
                 self._insert_data(new_obj, self.class_repr, data_items)
                 output_list.append(new_obj)
             return output_list

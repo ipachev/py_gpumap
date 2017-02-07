@@ -6,7 +6,7 @@ def indent(n):
 def dedent(body):
     lines = body.split("\n")
     out_lines = map(lambda l: l[4:], lines)
-    return list(out_lines)
+    return "\n".join(out_lines)
 
 def time_func(name, func, *args, **kwargs):
     start_time = perf_counter()

@@ -68,7 +68,7 @@ class FunctionCallExaminer:
                         func = self.top_level_func
 
                 if not isinstance(func, BuiltinFunctionType):
-                    arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
+                    arg_names = list(frame.f_code.co_varnames[:frame.f_code.co_argcount])
                     types = [type(frame.f_locals[var]) for var in arg_names]
                     print("found {}".format(func))
                     call = FunctionCall(cls, name, arg_names, types, func)
