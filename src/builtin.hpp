@@ -26,13 +26,12 @@ template <class T>
 __device__ T& ListIterator<T>::next() {
     T& next_item = this->list.items[this->curr_idx];
     this->curr_idx += 1;
-    printf("q");
     return next_item;
 }
 
 template <class T>
 __device__ bool ListIterator<T>::has_next() {
-    return this->curr_idx <= this->list.length;
+    return this->curr_idx < this->list.length;
 }
 
 class RangeIterator {

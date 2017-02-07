@@ -325,19 +325,15 @@ class FunctionConverter(ast.NodeVisitor):
         self.iter_counter += 1
         this_iterator = "__iterator_%d" % self.iter_counter
         lines.append("auto %s = ListIterator<%s>(%s);" % (this_iterator, list_type, node.iter.id))
-        lines.append(self.indent() + "if ({this_iterator}.has_next()) {{".format(this_iterator=this_iterator))
-        self.increase_indent()
         lines.append(
             self.indent() +
-            "for ({list_type} &{target} = {iter}.next(); {iter}.has_next();) {{".format(list_type=list_type,
-                                                                                        target=target,
-                                                                                        iter=this_iterator))
+            "while ({iter}.has_next()) {{".format(list_type=list_type,
+                                                  target=target,
+                                                  iter=this_iterator))
         self.increase_indent()
-        lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
+        lines.append(self.indent() + "{} &{} = {}.next();".format(list_type, target, this_iterator))
         for stmt in node.body:
             lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
-        self.decrease_indent()
-        lines.append(self.indent() + "}")
         self.decrease_indent()
         lines.append(self.indent() + "}")
         return "\n".join(lines)
@@ -366,9 +362,9 @@ class FunctionConverter(ast.NodeVisitor):
         arg_str = ", ".join((start, stop, step))
         lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
         lines.append(
-            self.indent() + "for (int {target}; {iter}.has_next();) {{".format(target=target, iter=this_iterator))
+            self.indent() + "while({iter}.has_next()) {{".format(target=target, iter=this_iterator))
         self.increase_indent()
-        lines.append(self.indent() + "{} = {}.next();".format(target, this_iterator))
+        lines.append(self.indent() + "int {} = {}.next();".format(target, this_iterator))
         for stmt in node.body:
             lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
         self.decrease_indent()
