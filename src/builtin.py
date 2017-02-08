@@ -1,3 +1,4 @@
+builtin = """
 #include <stdio.h>
 
 template <class T>
@@ -66,3 +67,4 @@ __device__ bool RangeIterator::has_next() {
     }
     return true;
 }
+"""

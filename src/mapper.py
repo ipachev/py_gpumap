@@ -1,6 +1,6 @@
 from examiner import FunctionCallExaminer
 from data_model import ExtractedClasses, Functions, ClassRepresentation
-from serialization import ListSerializer
+from serialization import ListSerializer, ItemSerializer
 from util import time_func
 from class_def import ClassDefGenerator
 from func_def import FunctionDefGenerator, MethodDefGenerator
@@ -11,6 +11,8 @@ from pycuda.compiler import SourceModule
 import os
 import numpy
 from operator import itemgetter
+
+from builtin import builtin
 
 
 _main_func = """
@@ -34,25 +36,25 @@ class MapperKernel:
         self.source_module = None
         self.func = None
         self.entry_point = entry_point
-        self.includes = ["builtin.hpp"]
+        self.includes = [builtin]
         self.list_classes = set(list_classes)
         self.closure_vars = closure_vars
 
     def _create_includes(self):
-        lines = []
+        items = []
         for include in self.includes:
-            with open(include, "r") as f:
-                builtin_src = f.read()
-            lines.append(builtin_src)
-            #lines.append("#include \"%s\"" % include)
-        return "\n".join(lines) + "\n"
+            items.append(include)
+        return "\n".join(items)
 
     def create_closure_params(self):
         if self.closure_vars:
             params = []
-            for name, class_repr in self.closure_vars:
+            for name, class_repr, is_list in self.closure_vars:
                 type_name = class_repr.name if isinstance(class_repr, ClassRepresentation) else class_repr.__name__
-                param = "List<{type}> *{var_name}".format(type=type_name, var_name=name)
+                if is_list:
+                    param = "List<{type}> *{var_name}".format(type=type_name, var_name=name)
+                else:
+                    param = "{type} *{var_name}".format(type=type_name, var_name=name)
                 params.append(param)
             return ", " + ", ".join(params)
         else:
@@ -70,9 +72,12 @@ class MapperKernel:
         kernel += cls_def_gen.all_cpp_class_defs(self.classes)
 
         func_repr = self.functions.functions[self.entry_point.name]
-        for name, class_repr in self.closure_vars:
+        for name, class_repr, is_list in self.closure_vars:
             type_name = class_repr.name if isinstance(class_repr, ClassRepresentation) else class_repr.__name__
-            func_repr.arg_types.append("List<{type_name}>".format(type_name=type_name))
+            if is_list:
+                func_repr.arg_types.append("List<{type_name}>".format(type_name=type_name))
+            else:
+                func_repr.arg_types.append("{type_name}".format(type_name=type_name))
             func_repr.args.append(name)
 
         fn_def_gen = FunctionDefGenerator()
@@ -92,16 +97,15 @@ class MapperKernel:
 
         kernel += _main_func.format(in_type=in_type, out_type=out_type,
                                     func_name=func_name, closure_params=closure_params, closure_args=closure_args)
-        print(kernel)
+        #print(kernel)
         return kernel
 
     def _build_module(self):
         kernel = time_func("code generator", self._build_kernel)
-        current_dir = os.path.dirname(os.path.realpath(__file__))
         options = []
         options.append("--std=c++11")
         options.append("-Wno-deprecated-gpu-targets")
-        self.source_module = SourceModule(kernel, options=options, no_extern_c=True, include_dirs=[current_dir])
+        self.source_module = SourceModule(kernel, options=options, no_extern_c=True)
         self.func = self.source_module.get_function("map_kernel")
 
     def get_func(self):
@@ -171,17 +175,24 @@ class Mapper:
         self.closure_vars = []
         for name, obj in self.get_closure_binding(self.func):
             print("added ", name, "to closure")
-            class_repr = self.classes.extract(obj[0])
-            serializer = ListSerializer(class_repr, obj)
+            if isinstance(obj, list):
+                class_repr = self.classes.extract(obj[0])
+                serializer = ListSerializer(class_repr, obj)
+                is_list = True
+            else:
+                class_repr = self.classes.extract(obj)
+                serializer = ItemSerializer(class_repr, obj)
+                is_list = False
+
             data = serializer.to_bytes()
             data_len = len(data)
             ptr = cuda.to_device(data)
-            self.closure_vars.append((name, serializer, ptr, data_len, class_repr))
+            self.closure_vars.append((name, serializer, ptr, data_len, class_repr, is_list))
 
     def prepare_kernel(self, entry_point):
         list_types = [self.candidate_in_repr, self.candidate_out_repr]
         list_types.extend(map(itemgetter(4), self.closure_vars))
-        closure_var_names = list(map(lambda x: (x[0], x[4]), self.closure_vars))
+        closure_var_names = list(map(lambda x: (x[0], x[4], x[5]), self.closure_vars))
         return MapperKernel(self.classes, self.functions, entry_point, list_types, closure_var_names)
 
     def prepare_map(self):
@@ -206,11 +217,10 @@ class Mapper:
         time_func("run kernel", func, self.in_ptr, self.out_ptr, length, *closure_args, block=block_dim, grid=grid_dim)
 
     def deserialize_closure_vars(self):
-        for name, serializer, ptr, data_len, class_repr in self.closure_vars:
+        for name, serializer, ptr, data_len, class_repr, is_list in self.closure_vars:
             incoming_bytes = bytearray(data_len)
             cuda.memcpy_dtoh(incoming_bytes, ptr)
             serializer.from_bytes(incoming_bytes)
-
 
     def unpack_results(self):
         result_in_bytes = bytearray(self.input_bytes_len)

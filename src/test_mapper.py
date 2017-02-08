@@ -15,19 +15,26 @@ class TestMapper:
                       TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
                       for _ in range(10000)]
 
+    class TestClassD:
+        def __init__(self, thing):
+            self.thing = thing
 
     def test_map(self):
         a_list = [TestClassC(i+1) for i in range(2000)]
         b_list = [TestClassC(1) for i in range(1000)]
+        something = TestMapper.TestClassD(True)
+        another_something = TestMapper.TestClassD(True)
         def thing(a):
             step = 2.3
             a_list[100].i = 1234 # bad practice. all threads will try to set this...
-            x = int(math.floor(step))
-            for i in range(0, a_list[1999].i, x):
-                a.increment_all(1)
+            if something.thing:
+                x = int(math.floor(step))
+                for i in range(0, a_list[1999].i, x):
+                    a.increment_all(1)
             b = TestClassA(a.a, a.a + a.b, a.a + a.b + a.c, TestClassB(a.o.x, a.o.x + a.o.y, a.o.x + a.o.y + a.o.z))
             for c in b_list:
                 b.increment_all(c.i)
+            another_something.thing = False # bad practice all threads will try to set this
             return b
 
 
@@ -35,7 +42,7 @@ class TestMapper:
         items_copy = pickle.loads(pickle.dumps(self.items))
         out_list = time_func("GPUMAP", mapper.gpumap, thing, self.items)
         assert a_list[100].i == 1234
-
+        assert another_something.thing == False
         for i, (initial, modified, out) in enumerate(zip(items_copy, self.items, out_list)):
             assert initial.a + 1000 == modified.a
             assert initial.b + 1000 == modified.b
@@ -74,22 +81,9 @@ class TestMapper:
         for i1, i2, i3 in zip(out_list, out_list2, out_list3):
             assert i1 == i2 == i3
 
-    def test_closure(self):
-        print("\n\nCLOSURE TEST:\n")
-        a = [1,2,3]
-        b = [4,5,6]
-        c = 17
-
-        def clos():
-            a.append(c)
-            b.append(c)
-
-        print(dict(zip(clos.__code__.co_freevars, map(lambda c: c.cell_contents, clos.__closure__))))
-
 
 if __name__ == "__main__":
     tm = time_func("init objects", TestMapper)
 
     tm.test_map()
     tm.test_map_primitives()
-    #tm.test_closure()

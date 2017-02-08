@@ -5,6 +5,55 @@ import struct
 import pickle
 
 
+class ItemSerializer:
+    def __init__(self, class_repr, item):
+        self.class_repr = class_repr
+        self.item = item
+        self.data_items_unpacked = None
+
+    def get_format(self):
+        if not isinstance(self.class_repr, ClassRepresentation):
+            format = primitive_map[class_repr]
+        else:
+            format = self.class_repr.get_format()
+        return format
+
+    @staticmethod
+    def get_data_items(item, class_repr):
+        if not isinstance(class_repr, ClassRepresentation):
+            return [item]
+        else:
+            data_items = []
+            ItemSerializer._extract_inner_data(item, class_repr, data_items)
+            return data_items
+
+    @staticmethod
+    def _extract_inner_data(item, class_repr, data_items):
+        for field, _type in zip(class_repr.field_names, class_repr.field_types):
+            if isinstance(_type, ClassRepresentation):
+                ListSerializer._extract_inner_data(item.__dict__[field], _type, data_items)
+            else:
+                data_items.append(item.__dict__[field])
+
+    def to_bytes(self):
+        data_items = self.get_data_items(self.item, self.class_repr)
+        output_bytes = struct.pack(self.get_format(), *data_items)
+        return output_bytes
+
+    def from_bytes(self, bytes):
+        data_items = struct.unpack(self.get_format(), bytes)
+        self.data_items_unpacked = 0
+        self._insert_data(self.item, self.class_repr, data_items)
+
+    def _insert_data(self, object, class_repr, data_items):
+        for field, _type in zip(class_repr.field_names, class_repr.field_types):
+            if isinstance(_type, ClassRepresentation):
+                self._insert_data(object.__dict__[field], _type, data_items)
+            else:
+                object.__dict__[field] = data_items[self.data_items_unpacked]
+                self.data_items_unpacked += 1
+
+
 class ListSerializer:
     def __init__(self, class_repr, _list=None, length=None):
         self._list = _list
