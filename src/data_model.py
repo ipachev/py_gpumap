@@ -1,21 +1,21 @@
 primitive_map = {int: "i", float: "f", bool: "?", type(None): "P"}
 built_in_functions = {
     "len": "len",
+    "print": "print",
     "math": {
-        "sin": "sinf",
-        "cos": "cosf",
-        "tan": "tanf",
-        "ceil": "ceilf",
-        "floor": "floorf",
-        "sqrt": "sqrtf",
-        "pow": "powf",
-        "log": "logf",
-        "log10": "log10f",
-        "log1p": "log1pf",
-        "log2": "log2f"
+        "sin": "sin",
+        "cos": "cos",
+        "tan": "tan",
+        "ceil": "ceil",
+        "floor": "floor",
+        "sqrt": "sqrt",
+        "pow": "pow",
+        "log": "log",
+        "log10": "log10",
+        "log1p": "log1p",
+        "log2": "log2",
     }
 }
-
 class Functions:
     def __init__(self):
         self.functions = {}

@@ -1,6 +1,9 @@
 builtin = """
 #include <stdio.h>
 
+template<typename T, typename... Args>
+__device__ void print(T first , Args... args) {}
+
 template <class T>
 class List {
     public:

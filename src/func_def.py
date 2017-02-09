@@ -236,6 +236,9 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_Pass(self, node):
         return ""
 
+    def visit_Str(self, node):
+        return "\"{str}\"".format(str=node.s)
+
     def visit_BinOp(self, node):
         return "(" + self.visit(node.left) + self.visit(node.op) + self.visit(node.right) + ")"
 
