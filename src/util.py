@@ -14,3 +14,9 @@ def time_func(name, func, *args, **kwargs):
     end_time = perf_counter()
     print(name + " :", end_time - start_time)
     return out
+
+def get_time(func, *args, **kwargs):
+    start_time = perf_counter()
+    func(*args, **kwargs)
+    end_time = perf_counter()
+    return end_time - start_time

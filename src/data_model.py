@@ -1,4 +1,4 @@
-primitive_map = {int: "i", float: "f", bool: "?"}
+primitive_map = {int: "i", float: "f", bool: "?", type(None): "P"}
 built_in_functions = {
     "len": "len",
     "math": {

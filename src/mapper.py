@@ -28,6 +28,19 @@ __global__ void map_kernel(List<{in_type}> *in, List<{out_type}> *out, int lengt
 }}
 """
 
+_foreach_func = """
+extern "C" {{
+#include <stdio.h>
+__global__ void map_kernel(List<{in_type}> *in, int length{closure_params}) {{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < length) {{
+        {in_type} &in_item = in->items[thread_id];
+        {func_name}(in_item{closure_args});
+    }}
+}}
+}}
+"""
+
 
 class MapperKernel:
     def __init__(self, classes, functions, entry_point, list_classes, closure_vars):
@@ -94,9 +107,13 @@ class MapperKernel:
 
         closure_params = self.create_closure_params()
         closure_args = self.create_closure_args()
-
-        kernel += _main_func.format(in_type=in_type, out_type=out_type,
-                                    func_name=func_name, closure_params=closure_params, closure_args=closure_args)
+        if self.entry_point.return_type == type(None):
+            func_def = _foreach_func
+        else:
+            func_def = _main_func
+            print("FOUND REAL RETURN TYPE!!")
+        kernel += func_def.format(in_type=in_type, out_type=out_type,
+                                  func_name=func_name, closure_params=closure_params, closure_args=closure_args)
         #print(kernel)
         return kernel
 
@@ -126,6 +143,8 @@ class Mapper:
         self.functions = Functions()
         self.in_serializer = ListSerializer(self.candidate_in_repr, self.rest)
         self.out_serializer = None
+
+        self.entry_point = None
 
         self.in_ptr = None
         self.out_ptr = None
@@ -189,53 +208,70 @@ class Mapper:
             ptr = cuda.to_device(data)
             self.closure_vars.append((name, serializer, ptr, data_len, class_repr, is_list))
 
-    def prepare_kernel(self, entry_point):
+    def prepare_kernel(self):
         list_types = [self.candidate_in_repr, self.candidate_out_repr]
         list_types.extend(map(itemgetter(4), self.closure_vars))
         closure_var_names = list(map(lambda x: (x[0], x[4], x[5]), self.closure_vars))
-        return MapperKernel(self.classes, self.functions, entry_point, list_types, closure_var_names)
+        return MapperKernel(self.classes, self.functions, self.entry_point, list_types, closure_var_names)
 
     def prepare_map(self):
         print("preparing map!!!")
-        entry_point = time_func("first_call", self.do_first_call)
+        time_func("prepare closure vars", self.prepare_closure_vars)
 
-        assert len(entry_point.args) == 1 # must be a function with one argument
-        assert len(entry_point.types) == 1
-        assert entry_point.cls is None # must not be a method
+        self.entry_point = time_func("first_call", self.do_first_call)
+        assert len(self.entry_point.args) == 1 # must be a function with one argument
+        assert len(self.entry_point.types) == 1
+        assert self.entry_point.cls is None # must not be a method
 
         time_func("serialize input", self.serialize_input)
-        time_func("serialize output", self.serialize_output)
+        if self.entry_point.return_type != type(None):
+            time_func("serialize output", self.serialize_output)
+            print("FOUND REAL RETURN TYPE")
 
-        time_func("prepare closure vars", self.prepare_closure_vars)
-        self.mapper_kernel = self.prepare_kernel(entry_point)
+        self.mapper_kernel = self.prepare_kernel()
 
     def perform_map(self):
         func = self.mapper_kernel.get_func()
         length = numpy.int32(len(self.rest))
         block_dim, grid_dim = self.get_dims()
         closure_args = list(map(itemgetter(2), self.closure_vars))
-        time_func("run kernel", func, self.in_ptr, self.out_ptr, length, *closure_args, block=block_dim, grid=grid_dim)
+
+        args = [self.in_ptr]
+        if self.entry_point.return_type != type(None):
+            args.append(self.out_ptr)
+        args.append(length)
+        args.extend(closure_args)
+
+        time_func("run kernel", func, *args, block=block_dim, grid=grid_dim)
 
     def deserialize_closure_vars(self):
         for name, serializer, ptr, data_len, class_repr, is_list in self.closure_vars:
             incoming_bytes = bytearray(data_len)
             cuda.memcpy_dtoh(incoming_bytes, ptr)
+            ptr.free()
             serializer.from_bytes(incoming_bytes)
 
     def unpack_results(self):
         result_in_bytes = bytearray(self.input_bytes_len)
-        result_out_bytes = bytearray(self.output_bytes_len)
-
         cuda.memcpy_dtoh(result_in_bytes, self.in_ptr)
-        cuda.memcpy_dtoh(result_out_bytes, self.out_ptr)
+        self.in_ptr.free()
 
         # unpack into previous objects
         result_in_list = time_func("in_from_bytes", self.in_serializer.from_bytes, result_in_bytes)
         result_in_list.insert(0, self.candidate_in)
 
-        #unpack into new list since the objects did not exist previously
-        result_out_list = time_func("out_create_list", self.out_serializer.create_output_list, result_out_bytes, self.candidate_out)
-        result_out_list.insert(0, self.candidate_out)
+        if self.entry_point.return_type != type(None):
+            print("FOUND REAL RETURN TYPE!!!!!")
+            result_out_bytes = bytearray(self.output_bytes_len)
+            cuda.memcpy_dtoh(result_out_bytes, self.out_ptr)
+            self.out_ptr.free()
+
+            #unpack into new list since the objects did not exist previously
+            result_out_list = time_func("out_create_list", self.out_serializer.create_output_list, result_out_bytes, self.candidate_out)
+            result_out_list.insert(0, self.candidate_out)
+        else:
+            print("DID NOT FIND REAL RETURN TYPE")
+            result_out_list = [None for _ in result_in_list]
 
         time_func("deserialize closure vars", self.deserialize_closure_vars)
 

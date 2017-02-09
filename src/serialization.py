@@ -13,7 +13,7 @@ class ItemSerializer:
 
     def get_format(self):
         if not isinstance(self.class_repr, ClassRepresentation):
-            format = primitive_map[class_repr]
+            format = primitive_map[self.class_repr]
         else:
             format = self.class_repr.get_format()
         return format
@@ -42,8 +42,11 @@ class ItemSerializer:
 
     def from_bytes(self, bytes):
         data_items = struct.unpack(self.get_format(), bytes)
-        self.data_items_unpacked = 0
-        self._insert_data(self.item, self.class_repr, data_items)
+        if isinstance(self.class_repr, ClassRepresentation):
+            self.data_items_unpacked = 0
+            self._insert_data(self.item, self.class_repr, data_items)
+        else:
+            return data_items[0]
 
     def _insert_data(self, object, class_repr, data_items):
         for field, _type in zip(class_repr.field_names, class_repr.field_types):

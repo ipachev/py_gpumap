@@ -27,24 +27,18 @@ class FunctionCallExaminer:
         self.prev_call = {}
         self.top_level_func = None
 
-    @classmethod
-    def get(cls):
-        if FunctionCallExaminer.calls is None:
-            FunctionCallExaminer.calls = FunctionCallExaminer()
-        return FunctionCallExaminer.calls
-
-    @classmethod
-    def runfunc(cls, func, *args):
-        FunctionCallExaminer.get().results = []
-        FunctionCallExaminer.get().top_level_func = func
+    @staticmethod
+    def runfunc(func, *args):
+        FunctionCallExaminer.calls = FunctionCallExaminer()
+        FunctionCallExaminer.calls.top_level_func = func
         sys.settrace(tracefunc)
         ret_val = func(*args)
         sys.settrace(None)
         return ret_val
 
-    @classmethod
-    def results(cls):
-        return cls.calls.results
+    @staticmethod
+    def results():
+        return FunctionCallExaminer.calls.results
 
     def trace(self, frame, event, arg):
         name = frame.f_code.co_name
@@ -85,7 +79,7 @@ class FunctionCallExaminer:
 
 
 def tracefunc(frame, event, arg):
-    trace = FunctionCallExaminer.get().trace
+    trace = FunctionCallExaminer.calls.trace
     trace(frame, event, arg)
     return tracefunc
 
