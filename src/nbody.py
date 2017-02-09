@@ -123,7 +123,7 @@ class CPU_Simulation(Simulation):
         list(map(update, bodies))
 
 
-if __name__ == "__main__":
+def test():
     num_steps = 10
     with open("output-10steps.csv", "w") as f:
         print("num_bodies,gpu_time,cpu_time", file=f)
@@ -133,11 +133,44 @@ if __name__ == "__main__":
             body_gen = BodyGenerator(num_bodies)
             body_gen.generate_bodies()
 
-            gpu_sim = GPU_Simulation(body_gen.get_copy(), num_steps)
+            gpu_bodies = body_gen.get_copy()
+            gpu_sim = GPU_Simulation(gpu_bodies, num_steps)
             gpu_time = get_time(gpu_sim.run)
 
-            cpu_sim = CPU_Simulation(body_gen.get_copy(), num_steps)
+            cpu_bodies = body_gen.get_copy()
+            cpu_sim = CPU_Simulation(cpu_bodies, num_steps)
             cpu_time = get_time(cpu_sim.run)
+
+            for gpu_body, cpu_body in zip(gpu_bodies, cpu_bodies):
+                assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.01
+                assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.01
+                assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.01
+                assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.01
+                assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.01
+                assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.01
+                assert abs(gpu_body.mass - cpu_body.mass) < 0.01
+
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()
             num_bodies *= 2
+
+
+def warmup():
+    warmup_bodies = 100
+    num_steps = 10
+
+    body_gen = BodyGenerator(warmup_bodies)
+    body_gen.generate_bodies()
+
+    # warmup
+    gpu_bodies = body_gen.get_copy()
+    gpu_sim = GPU_Simulation(gpu_bodies, num_steps)
+    gpu_sim.run()
+
+    cpu_bodies = body_gen.get_copy()
+    cpu_sim = CPU_Simulation(cpu_bodies, num_steps)
+    cpu_sim.run()
+
+if __name__ == "__main__":
+    warmup()
+    test()
