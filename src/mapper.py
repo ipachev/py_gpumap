@@ -1,5 +1,5 @@
 from examiner import FunctionCallExaminer
-from data_model import ExtractedClasses, Functions, ClassRepresentation
+from data_model import ExtractedClasses, Functions, ClassRepresentation, convert_float
 from serialization import ListSerializer, ItemSerializer
 from util import time_func
 from class_def import ClassDefGenerator
@@ -206,7 +206,7 @@ class Mapper:
             data = serializer.to_bytes()
             data_len = len(data)
             ptr = cuda.to_device(data)
-            self.closure_vars.append((name, serializer, ptr, data_len, class_repr, is_list))
+            self.closure_vars.append((name, serializer, ptr, data_len, convert_float(class_repr), is_list))
 
     def prepare_kernel(self):
         list_types = [self.candidate_in_repr, self.candidate_out_repr]

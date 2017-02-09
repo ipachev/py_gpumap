@@ -1,6 +1,6 @@
 from util import indent
 
-from data_model import primitive_map, ClassRepresentation
+from data_model import primitive_map, ClassRepresentation, convert_float
 
 from collections import defaultdict
 
@@ -47,7 +47,7 @@ class ClassDefGenerator:
             if isinstance(_type, ClassRepresentation):
                 name = _type.name
             else:
-                name = _type.__name__
+                name = convert_float(_type).__name__
             output += indent(2) + "{type} {arg};\n".format(arg=arg, type=name)
 
         output += indent(2) + "__device__ %s(){};\n" % class_repr.name

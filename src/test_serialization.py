@@ -116,12 +116,9 @@ class TestSerialization:
 
 
         cls_def_gen = ClassDefGenerator()
+        from builtin import builtin
 
-        with open("builtin.hpp", "r") as f:
-            builtin_src = f.read()
-            f.close()
-
-        kernel = cls_def_gen.all_cpp_class_defs(class_reprs) + builtin_src + """
+        kernel = builtin + cls_def_gen.all_cpp_class_defs(class_reprs) + """
 extern "C" {
 __global__ void stuff(List<TestClassA> *things) {
   int val = things->items[threadIdx.x].a;

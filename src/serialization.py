@@ -95,20 +95,19 @@ class ListSerializer:
 
     @staticmethod
     def project_size(class_repr, candidate_obj, list_length):
-        data_items = ListSerializer.get_data_items([candidate_obj], class_repr)[1:]
         format = primitive_map[class_repr] if class_repr in primitive_map else class_repr.get_format()
-        return len(struct.pack("i", 0)) + len(struct.pack(format, *data_items)) * list_length
+        return struct.calcsize("i") + struct.calcsize(format) * list_length
 
     def from_bytes(self, _bytes):
         # unpacks into the same objects
-        data_items = list(struct.unpack(self.format, _bytes))[1:] # skip list length
+        data_items = list(struct.unpack(self.format, _bytes)) # skip list length
         if not isinstance(self.class_repr, ClassRepresentation):
-            return data_items
+            return data_items[1:]
         else:
             output_list = self._list
             self.data_items_unpacked = 0
             for item in output_list:
-                self._insert_data(item, self.class_repr, data_items)
+                self._insert_data(item, self.class_repr, data_items[1:])
             return output_list
 
     def create_output_list(self, _bytes, sample_object):

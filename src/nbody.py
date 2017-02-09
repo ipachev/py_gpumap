@@ -142,13 +142,23 @@ def test():
             cpu_time = get_time(cpu_sim.run)
 
             for gpu_body, cpu_body in zip(gpu_bodies, cpu_bodies):
-                assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.01
-                assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.01
-                assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.01
-                assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.01
-                assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.01
-                assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.01
-                assert abs(gpu_body.mass - cpu_body.mass) < 0.01
+                try:
+                    assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.0001
+                    assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.0001
+                    assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.0001
+                    assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.0001
+                    assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.0001
+                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.0001
+                    assert abs(gpu_body.mass - cpu_body.mass) < 0.0001
+                except:
+                    print(gpu_body.pos.x, cpu_body.pos.x)
+                    print(gpu_body.pos.y, cpu_body.pos.y)
+                    print(gpu_body.pos.z, cpu_body.pos.z)
+                    print(gpu_body.vel.x, cpu_body.vel.x)
+                    print(gpu_body.vel.y, cpu_body.vel.y)
+                    print(gpu_body.vel.z, cpu_body.vel.z)
+                    print(gpu_body.mass, cpu_body.mass)
+
 
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()

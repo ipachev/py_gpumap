@@ -1,4 +1,7 @@
-primitive_map = {int: "i", float: "f", bool: "?", type(None): "P"}
+class double(float):
+    pass
+
+primitive_map = {int: "i", float: "d", bool: "?", type(None): "P", double: "d"}
 built_in_functions = {
     "len": "len",
     "print": "print",
@@ -16,6 +19,13 @@ built_in_functions = {
         "log2": "log2",
     }
 }
+
+def convert_float(_type):
+    if _type is float:
+        return double
+    else:
+        return _type
+
 class Functions:
     def __init__(self):
         self.functions = {}
@@ -23,8 +33,9 @@ class Functions:
     def add_functions(self, called_funcs):
         for called_func in filter(lambda f: not f.is_method(), called_funcs):
             self.functions[called_func.name] = FunctionRepresentation(called_func.name, called_func.args,
-                                                                      called_func.types, called_func.return_type,
+                                                                      list(map(convert_float, called_func.types)), convert_float(called_func.return_type),
                                                                       called_func.function)
+
 
 class ExtractedClasses:
     def __init__(self):
@@ -37,7 +48,7 @@ class ExtractedClasses:
     def add_methods(self, called_funcs):
         for called_func in filter(lambda f: f.is_method(), called_funcs):
             method = MethodRepresentation(called_func.cls, called_func.name, called_func.args,
-                                          called_func.types, called_func.return_type, called_func.function)
+                                          list(map(convert_float, called_func.types)), convert_float(called_func.return_type), called_func.function)
             self.classes[called_func.cls.__name__].add_method(method)
 
     def extract(self, obj):
