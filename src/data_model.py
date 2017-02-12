@@ -6,6 +6,7 @@ built_in_functions = {
     "len": "len",
     "print": "print",
     "math": {
+        "exp": "exp",
         "sin": "sin",
         "cos": "cos",
         "tan": "tan",

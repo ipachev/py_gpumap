@@ -125,7 +125,7 @@ class FunctionConverter(ast.NodeVisitor):
             # assignment into new variable
             # not sure about the type just yet..
             if target.id not in self.local_vars:
-                output += "auto "
+                output += "auto &&"
                 self.local_vars[target.id] = None
         output += self.visit(target)
 
@@ -449,7 +449,7 @@ class MethodConverter(FunctionConverter):
             # assignment into new variable
             # not sure about the type just yet..
             if target.id not in self.local_vars:
-                output += "auto "
+                output += "auto && "
                 self.local_vars[target.id] = None
             output += self.visit(target)
         output += " = " + self.visit(node.value)

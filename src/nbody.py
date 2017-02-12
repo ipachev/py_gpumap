@@ -143,13 +143,14 @@ def test():
 
             for gpu_body, cpu_body in zip(gpu_bodies, cpu_bodies):
                 try:
-                    assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.0001
-                    assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.0001
-                    assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.0001
-                    assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.0001
-                    assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.0001
-                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.0001
-                    assert abs(gpu_body.mass - cpu_body.mass) < 0.0001
+                    assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.001
+                    assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.001
+                    assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.001
+                    assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.001
+                    assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.001
+                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
+                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
+                    assert abs(gpu_body.mass - cpu_body.mass) < 0.001
                 except:
                     print(gpu_body.pos.x, cpu_body.pos.x)
                     print(gpu_body.pos.y, cpu_body.pos.y)
@@ -166,7 +167,7 @@ def test():
 
 
 def warmup():
-    warmup_bodies = 100
+    warmup_bodies = 256
     num_steps = 10
 
     body_gen = BodyGenerator(warmup_bodies)

@@ -100,14 +100,14 @@ class ListSerializer:
 
     def from_bytes(self, _bytes):
         # unpacks into the same objects
-        data_items = list(struct.unpack(self.format, _bytes)) # skip list length
+        data_items = list(struct.unpack(self.format, _bytes))[1:] # skip list length
         if not isinstance(self.class_repr, ClassRepresentation):
-            return data_items[1:]
+            return data_items
         else:
             output_list = self._list
             self.data_items_unpacked = 0
             for item in output_list:
-                self._insert_data(item, self.class_repr, data_items[1:])
+                self._insert_data(item, self.class_repr, data_items)
             return output_list
 
     def create_output_list(self, _bytes, sample_object):

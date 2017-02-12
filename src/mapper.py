@@ -158,7 +158,7 @@ class Mapper:
 
     def get_dims(self):
         total_length = len(self.rest)
-        block_size = 1024
+        block_size = 512
         grid_size = total_length // block_size + (1 if total_length % block_size > 0 else 0)
         return (block_size, 1, 1), (grid_size, 1)
 
