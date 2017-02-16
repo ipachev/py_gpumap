@@ -310,9 +310,11 @@ class Mapper:
 
 
 def gpumap(func, _list):
-    mapper = Mapper(func, _list)
-    mapper.prepare_map()
-    mapper.perform_map()
-    result_in, result_out = time_func("deserialize", mapper.unpack_results)
-    return result_out
+    def do_map():
+        mapper = Mapper(func, _list)
+        mapper.prepare_map()
+        mapper.perform_map()
+        result_in, result_out = time_func("deserialize", mapper.unpack_results)
+        return result_out
+    return time_func("total", do_map)
 

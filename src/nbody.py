@@ -125,12 +125,12 @@ class CPU_Simulation(Simulation):
 
 
 def test():
-    util.Results.clear_results()
     num_steps = 10
     with open("nbodies_out.csv", "w") as f:
         print("num_bodies,gpu_time,cpu_time", file=f)
         num_bodies = 2
-        while num_bodies < 20000:
+        while num_bodies < 10:
+            util.Results.clear_results()
             print("num bodies", num_bodies)
             body_gen = BodyGenerator(num_bodies)
             body_gen.generate_bodies()
@@ -166,7 +166,7 @@ def test():
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()
             num_bodies *= 2
-    util.Results.output_results()
+            util.Results.output_results("num_bodies{}.csv".format(num_bodies))
 
 
 def warmup():

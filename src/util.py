@@ -1,28 +1,32 @@
 from time import perf_counter
 import os
-from collections import defaultdict
 
 results_dir = os.path.join(os.getenv("HOME"), ".ivan_results", "{}".format(perf_counter()))
 os.makedirs(results_dir)
 
 class Results:
-    results = defaultdict(list)
-    columns = ["code generator", "serialize closure vars", "serialize input", "first_call", "run kernel", "deserialize"]
+    results = {}
+    columns = ["code generator", "serialize closure vars", "serialize input", "first_call", "run kernel", "deserialize", "total"]
+    for column in columns:
+        results[column] = []
 
     @staticmethod
     def clear_results():
-        Results.results = defaultdict(list)
+        for column in Results.columns:
+            Results.results[column] = []
 
     @staticmethod
-    def output_results():
-        with open(os.path.join(results_dir), "output.csv") as f:
-            print("first_call,code_gen,serialize,run,deserialize", file=f)
-            for code_gen, serialize_closure, serialize_input, first_call, run_kernel, deserialize in zip(
+    def output_results(file_name="output.csv"):
+        path = os.path.join(results_dir, file_name)
+        print("saving file", path)
+        with open(path, "a") as f:
+            print("first_call,code_gen,serialize,run,deserialize,total", file=f)
+            for code_gen, serialize_closure, serialize_input, first_call, run_kernel, deserialize, total in zip(
                     Results.results[Results.columns[0]], Results.results[Results.columns[1]],
                     Results.results[Results.columns[2]], Results.results[Results.columns[3]],
-                    Results.results[Results.columns[4]], Results.results[Results.columns[5]]):
-                print("{},{},{},{},{}".format(first_call, code_gen, serialize_input + serialize_closure, run_kernel,
-                                              deserialize), file=f)
+                    Results.results[Results.columns[4]], Results.results[Results.columns[5]], Results.results[Results.columns[6]]):
+                print("{},{},{},{},{},{}".format(first_call, code_gen, serialize_input + serialize_closure, run_kernel,
+                                              deserialize,total), file=f)
 
 
 def indent(n):
