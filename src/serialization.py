@@ -1,5 +1,4 @@
 from data_model import ClassRepresentation, primitive_map
-from util import time_func
 
 import struct
 import pickle
@@ -90,8 +89,8 @@ class ListSerializer:
                 data_items.append(item.__dict__[field])
 
     def to_bytes(self):
-        data_items = time_func("get data items", self.get_data_items, self._list, self.class_repr)
-        return time_func("struct pack", struct.pack, self.format, *data_items)
+        data_items = self.get_data_items(self._list, self.class_repr)
+        return struct.pack(self.format, *data_items)
 
     @staticmethod
     def project_size(class_repr, candidate_obj, list_length):

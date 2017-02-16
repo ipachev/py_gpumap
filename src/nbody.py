@@ -1,4 +1,5 @@
 from mapper import gpumap
+import util
 from util import get_time
 
 from random import uniform
@@ -124,11 +125,12 @@ class CPU_Simulation(Simulation):
 
 
 def test():
+    util.Results.clear_results()
     num_steps = 10
-    with open("output-10steps.csv", "w") as f:
+    with open("nbodies_out.csv", "w") as f:
         print("num_bodies,gpu_time,cpu_time", file=f)
         num_bodies = 2
-        while num_bodies < 10000:
+        while num_bodies < 20000:
             print("num bodies", num_bodies)
             body_gen = BodyGenerator(num_bodies)
             body_gen.generate_bodies()
@@ -164,6 +166,7 @@ def test():
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()
             num_bodies *= 2
+    util.Results.output_results()
 
 
 def warmup():

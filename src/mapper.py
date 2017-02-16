@@ -200,7 +200,7 @@ class Mapper:
 
     def serialize_input(self):
         input_bytes = self.in_serializer.to_bytes()
-        self.in_ptr = time_func("cuda copy", cuda.to_device, input_bytes)
+        self.in_ptr = cuda.to_device(input_bytes)
         self.input_bytes_len = len(input_bytes)
 
     def serialize_output(self):
@@ -247,7 +247,7 @@ class Mapper:
 
     def prepare_map(self):
         print("preparing map!!!")
-        time_func("prepare closure vars", self.prepare_closure_vars)
+        time_func("serialize closure vars", self.prepare_closure_vars)
 
         self.entry_point = time_func("first_call", self.do_first_call)
         assert len(self.entry_point.args) == 1 # must be a function with one argument
@@ -256,7 +256,7 @@ class Mapper:
 
         time_func("serialize input", self.serialize_input)
         if self.entry_point.return_type != type(None):
-            time_func("serialize output", self.serialize_output)
+            self.serialize_output()
             print("FOUND REAL RETURN TYPE")
 
         self.mapper_kernel = self.prepare_kernel()
@@ -288,7 +288,7 @@ class Mapper:
         self.in_ptr.free()
 
         # unpack into previous objects
-        result_in_list = time_func("in_from_bytes", self.in_serializer.from_bytes, result_in_bytes)
+        result_in_list = self.in_serializer.from_bytes(result_in_bytes)
         result_in_list.insert(0, self.candidate_in)
 
         if self.entry_point.return_type != type(None):
@@ -298,13 +298,13 @@ class Mapper:
             self.out_ptr.free()
 
             #unpack into new list since the objects did not exist previously
-            result_out_list = time_func("out_create_list", self.out_serializer.create_output_list, result_out_bytes, self.candidate_out)
+            result_out_list = self.out_serializer.create_output_list(result_out_bytes, self.candidate_out)
             result_out_list.insert(0, self.candidate_out)
         else:
             print("DID NOT FIND REAL RETURN TYPE")
             result_out_list = [None for _ in result_in_list]
 
-        time_func("deserialize closure vars", self.deserialize_closure_vars)
+        self.deserialize_closure_vars()
 
         return result_in_list, result_out_list
 
@@ -313,25 +313,6 @@ def gpumap(func, _list):
     mapper = Mapper(func, _list)
     mapper.prepare_map()
     mapper.perform_map()
-    result_in, result_out = time_func("unpack", mapper.unpack_results)
+    result_in, result_out = time_func("deserialize", mapper.unpack_results)
     return result_out
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
