@@ -1,6 +1,6 @@
 from examiner import FunctionCallExaminer
 from data_model import ExtractedClasses, Functions, ClassRepresentation, convert_float
-from serialization import ListSerializer, ItemSerializer
+from serialization import ListSerializer, ItemSerializer, ListOfListSerializer
 from util import time_func
 from class_def import ClassDefGenerator
 from func_def import FunctionDefGenerator, MethodDefGenerator
@@ -41,9 +41,22 @@ __global__ void map_kernel(List<{in_type}> *in, int length{closure_params}) {{
 }}
 """
 
+_list_of_list_func = """
+extern "C" {{
+#include <stdio.h>
+__global__ void map_kernel(ListOfLists<{in_type}> *in, List<{out_type}> *out, int length{closure_params}) {{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < length) {{
+        List_Ptr<{in_type}> in_list = {{in->list_length, &(in->items[thread_id * in->list_length])}};
+        out->items[thread_id] = {func_name}(in_list{closure_args});
+    }}
+}}
+}}
+"""
+
 
 class MapperKernel:
-    def __init__(self, classes, functions, entry_point, list_classes, closure_vars):
+    def __init__(self, classes, functions, entry_point, list_classes, closure_vars, list_type):
         self.classes = classes
         self.functions = functions
         self.source_module = None
@@ -52,6 +65,7 @@ class MapperKernel:
         self.includes = [builtin]
         self.list_classes = set(list_classes)
         self.closure_vars = closure_vars
+        self.list_type = list_type
 
     def _create_includes(self):
         items = []
@@ -101,13 +115,17 @@ class MapperKernel:
         for class_repr in self.classes.classes.values():
             kernel += method_gen.all_method_defs(class_repr)
 
-        in_type = self.entry_point.types[0].__name__
+        in_type = self.entry_point.types[0].__name__ if not isinstance(self.entry_point.types[0], str) else self.entry_point.types[0]
         out_type = self.entry_point.return_type.__name__
         func_name = self.entry_point.name
 
         closure_params = self.create_closure_params()
         closure_args = self.create_closure_args()
-        if self.entry_point.return_type == type(None):
+        if isinstance(self.entry_point.types[0], str):
+            func_def = _list_of_list_func
+            print("found list of lists")
+            in_type = self.list_type.__name__
+        elif self.entry_point.return_type == type(None):
             func_def = _foreach_func
         else:
             func_def = _main_func
@@ -137,11 +155,15 @@ class Mapper:
         self.candidate_in = _list[0]
         self.candidate_out = None
         self.classes = ExtractedClasses()
-        self.candidate_in_repr = self.classes.extract(self.candidate_in)
         self.candidate_out_repr = None
 
         self.functions = Functions()
-        self.in_serializer = ListSerializer(self.candidate_in_repr, self.rest)
+        if isinstance(self.candidate_in, list):
+            self.candidate_in_repr = self.classes.extract(self.candidate_in[0])
+            self.in_serializer = ListOfListSerializer(self.candidate_in_repr, self.rest)
+        else:
+            self.candidate_in_repr = self.classes.extract(self.candidate_in)
+            self.in_serializer = ListSerializer(self.candidate_in_repr, self.rest)
         self.out_serializer = None
 
         self.entry_point = None
@@ -167,6 +189,9 @@ class Mapper:
         self.candidate_out_repr = self.classes.extract(self.candidate_out)
 
         called = FunctionCallExaminer.results()
+        if isinstance(self.candidate_in, list):
+            called[0].types[0] = "List_Ptr<" + type(self.candidate_in[0]).__name__ + ">"
+
         self.classes.add_methods(called)
         self.functions.add_functions(called)
 
@@ -194,7 +219,9 @@ class Mapper:
         self.closure_vars = []
         for name, obj in self.get_closure_binding(self.func):
             print("added ", name, "to closure")
-            if isinstance(obj, list):
+            if callable(obj):
+                continue
+            elif isinstance(obj, list):
                 class_repr = self.classes.extract(obj[0])
                 serializer = ListSerializer(class_repr, obj)
                 is_list = True
@@ -209,10 +236,14 @@ class Mapper:
             self.closure_vars.append((name, serializer, ptr, data_len, convert_float(class_repr), is_list))
 
     def prepare_kernel(self):
+        if isinstance(self.candidate_in, list):
+            list_type = type(self.candidate_in[0])
+        else:
+            list_type = None
         list_types = [self.candidate_in_repr, self.candidate_out_repr]
         list_types.extend(map(itemgetter(4), self.closure_vars))
         closure_var_names = list(map(lambda x: (x[0], x[4], x[5]), self.closure_vars))
-        return MapperKernel(self.classes, self.functions, self.entry_point, list_types, closure_var_names)
+        return MapperKernel(self.classes, self.functions, self.entry_point, list_types, closure_var_names, list_type)
 
     def prepare_map(self):
         print("preparing map!!!")

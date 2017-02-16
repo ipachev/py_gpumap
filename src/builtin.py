@@ -5,6 +5,47 @@ template<typename T, typename... Args>
 __device__ void print(T first , Args... args) {}
 
 template <class T>
+class ListOfLists {
+    public:
+        int list_length;
+        T items[];
+};
+
+template <class T>
+class List_Ptr {
+    public:
+        int length;
+        T *items;
+};
+
+template<class T>
+__device__ int len(List_Ptr<T> &l) {
+    return l.length;
+}
+
+template <class T>
+class List_PtrIterator {
+    public:
+        int curr_idx;
+        List_Ptr<T> &list;
+        __device__ List_PtrIterator(List_Ptr<T> &list) : list(list), curr_idx(0) {};
+        __device__ T& next();
+        __device__ bool has_next();
+};
+
+template <class T>
+__device__ T& List_PtrIterator<T>::next() {
+    T& next_item = this->list.items[this->curr_idx];
+    this->curr_idx += 1;
+    return next_item;
+}
+
+template <class T>
+__device__ bool List_PtrIterator<T>::has_next() {
+    return this->curr_idx < this->list.length;
+}
+
+template <class T>
 class List {
     public:
         int length;

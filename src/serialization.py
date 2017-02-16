@@ -133,3 +133,60 @@ class ListSerializer:
             else:
                 object.__dict__[field] = data_items[self.data_items_unpacked]
                 self.data_items_unpacked += 1
+
+class ListOfListSerializer:
+    def __init__(self, class_repr, _list):
+        self.class_repr = class_repr
+        self.list = _list
+        self.format = self.get_format()
+
+    def get_format(self):
+        num_lists = len(self.list)
+        list_len = len(self.list[0])
+
+        if isinstance(self.class_repr, ClassRepresentation):
+            fmt = self.class_repr.get_format()
+        else:
+            fmt = primitive_map[self.class_repr]
+
+        return "i" + fmt * (num_lists * list_len)
+
+    @staticmethod
+    def get_data_items(_list, class_repr):
+        data_items = [len(_list[0])]
+        if not isinstance(class_repr, ClassRepresentation):
+            for l in _list:
+                data_items.extend(l)
+        else:
+            for l in _list:
+                for item in l:
+                    ListSerializer._extract_inner_data(item, class_repr, data_items)
+        return data_items
+
+    def to_bytes(self):
+        data_items = self.get_data_items(self.list, self.class_repr)
+        return struct.pack(self.format, *data_items)
+
+    def from_bytes(self, _bytes):
+        # unpacks into the same objects
+        data_items = list(struct.unpack(self.format, _bytes))[1:]
+        if not isinstance(self.class_repr, ClassRepresentation):
+            item_pos = 0
+            for l in self.list:
+                for i in range(len(l)):
+                    l[i] = data_items[item_pos]
+                    item_pos += 1
+        else:
+            self.data_items_unpacked = 0
+            for l in self.list:
+                for item in l:
+                    self._insert_data(item, self.class_repr, data_items)
+        return self.list
+
+    def _insert_data(self, object, class_repr, data_items):
+        for field, _type in zip(class_repr.field_names, class_repr.field_types):
+            if isinstance(_type, ClassRepresentation):
+                self._insert_data(object.__dict__[field], _type, data_items)
+            else:
+                object.__dict__[field] = data_items[self.data_items_unpacked]
+                self.data_items_unpacked += 1

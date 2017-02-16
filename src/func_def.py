@@ -99,6 +99,7 @@ class FunctionConverter(ast.NodeVisitor):
 
         # put args as local vars
         for arg, _type in zip(self.func_repr.args, self.func_repr.arg_types):
+            print("adding type", _type)
             self.local_vars[arg] = _type
         out = self.visit(self.ast)
         return out
@@ -314,6 +315,9 @@ class FunctionConverter(ast.NodeVisitor):
                     if isinstance(var_type, str) and var_type.startswith("List<"):
                         list_type = var_type[var_type.find("<") + 1: var_type.rfind(">")]
                         return self.for_list(node, list_type, target)
+                    elif isinstance(var_type, str) and var_type.startswith("List_Ptr<"):
+                        list_type = var_type[var_type.find("<") + 1: var_type.rfind(">")]
+                        return self.for_list(node, list_type, target, ptr=True)
                     else:
                         raise Exception("cannot iterate over a non-list type")
                 else:
@@ -323,11 +327,12 @@ class FunctionConverter(ast.NodeVisitor):
 
 
 
-    def for_list(self, node, list_type, target):
+    def for_list(self, node, list_type, target, ptr=False):
         lines = []
         self.iter_counter += 1
         this_iterator = "__iterator_%d" % self.iter_counter
-        lines.append("auto %s = ListIterator<%s>(%s);" % (this_iterator, list_type, node.iter.id))
+        iter = "List_PtrIterator" if ptr else "ListIterator"
+        lines.append("auto %s = %s<%s>(%s);" % (this_iterator, iter, list_type, node.iter.id))
         lines.append(
             self.indent() +
             "while ({iter}.has_next()) {{".format(list_type=list_type,

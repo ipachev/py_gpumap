@@ -13,11 +13,34 @@ class TestMapper:
     def __init__(self):
         self.items = [TestClassA(random.randint(0,30), random.randint(0,30), random.randint(0,30),
                       TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
-                      for _ in range(1000)]
+                      for _ in range(10000)]
 
     class TestClassD:
         def __init__(self, thing):
             self.thing = thing
+
+    def test_list_of_list(self):
+        print("\n\nLIST OF LIST TEST:\n")
+        pickle_str = pickle.dumps(self.items)
+        items = [pickle.loads(pickle_str) for _ in range(10)]
+        items_duplicate = [pickle.loads(pickle_str) for _ in range(10)]
+        def sum(l):
+            s = 0
+            for i in range(len(l)):
+                l[i].b += 1
+                s += l[i].a
+            return s
+
+        gpu_output = time_func("gpu", mapper.gpumap, sum, items)
+        cpu_output = time_func("cpu", list, map(sum, items_duplicate))
+
+        for l1, l2 in zip(items, items_duplicate):
+            for gpu, cpu in zip(l1, l2):
+                assert gpu.b == cpu.b
+
+        for gpu, cpu in zip(gpu_output, cpu_output):
+            assert gpu == cpu
+
 
     def test_foreach(self):
         foreach_items = pickle.loads(pickle.dumps(self.items))
@@ -115,6 +138,7 @@ class TestMapper:
 
 if __name__ == "__main__":
     tm = time_func("init objects", TestMapper)
+    tm.test_list_of_list()
     tm.test_foreach()
     tm.test_map()
-    #tm.test_map_primitives()
+    tm.test_map_primitives()
