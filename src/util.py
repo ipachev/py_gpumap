@@ -41,7 +41,11 @@ def time_func(name, func, *args, **kwargs):
     start_time = perf_counter()
     out = func(*args, **kwargs)
     end_time = perf_counter()
-    Results.results[name].append(end_time - start_time)
+    duration = end_time - start_time
+    if name in Results.results:
+        Results.results[name].append(duration)
+    else:
+        print(name, ":", duration)
     return out
 
 def get_time(func, *args, **kwargs):

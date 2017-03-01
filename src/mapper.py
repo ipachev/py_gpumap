@@ -54,9 +54,22 @@ __global__ void map_kernel(ListOfLists<{in_type}> *in, List<{out_type}> *out, in
 }}
 """
 
+_list_of_list_foreach = """
+extern "C" {{
+#include <stdio.h>
+__global__ void map_kernel(ListOfLists<{in_type}> *in, int length{closure_params}) {{
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (thread_id < length) {{
+        List_Ptr<{in_type}> in_list = {{in->list_length, &(in->items[thread_id * in->list_length])}};
+        {func_name}(in_list{closure_args});
+    }}
+}}
+}}
+"""
+
 
 class MapperKernel:
-    def __init__(self, classes, functions, entry_point, list_classes, closure_vars, list_type):
+    def __init__(self, classes, functions, entry_point, list_classes, closure_vars, list_type, kernel):
         self.classes = classes
         self.functions = functions
         self.source_module = None
@@ -66,6 +79,7 @@ class MapperKernel:
         self.list_classes = set(list_classes)
         self.closure_vars = closure_vars
         self.list_type = list_type
+        self.kernel = kernel
 
     def _create_includes(self):
         items = []
@@ -92,6 +106,9 @@ class MapperKernel:
         return ", " + args if args else ""
 
     def _build_kernel(self):
+        if self.kernel is not None:
+            return self.kernel
+
         cls_def_gen = ClassDefGenerator()
 
         kernel = self._create_includes() + "\n"
@@ -122,7 +139,10 @@ class MapperKernel:
         closure_params = self.create_closure_params()
         closure_args = self.create_closure_args()
         if isinstance(self.entry_point.types[0], str):
-            func_def = _list_of_list_func
+            if self.entry_point.return_type == type(None):
+                func_def = _list_of_list_foreach
+            else:
+                func_def = _list_of_list_func
             print("found list of lists")
             in_type = self.list_type.__name__
         elif self.entry_point.return_type == type(None):
@@ -235,7 +255,7 @@ class Mapper:
             ptr = cuda.to_device(data)
             self.closure_vars.append((name, serializer, ptr, data_len, convert_float(class_repr), is_list))
 
-    def prepare_kernel(self):
+    def prepare_kernel(self, kernel):
         if isinstance(self.candidate_in, list):
             list_type = type(self.candidate_in[0])
         else:
@@ -243,9 +263,9 @@ class Mapper:
         list_types = [self.candidate_in_repr, self.candidate_out_repr]
         list_types.extend(map(itemgetter(4), self.closure_vars))
         closure_var_names = list(map(lambda x: (x[0], x[4], x[5]), self.closure_vars))
-        return MapperKernel(self.classes, self.functions, self.entry_point, list_types, closure_var_names, list_type)
+        return MapperKernel(self.classes, self.functions, self.entry_point, list_types, closure_var_names, list_type, kernel)
 
-    def prepare_map(self):
+    def prepare_map(self, kernel):
         print("preparing map!!!")
         time_func("serialize closure vars", self.prepare_closure_vars)
 
@@ -259,7 +279,7 @@ class Mapper:
             self.serialize_output()
             print("FOUND REAL RETURN TYPE")
 
-        self.mapper_kernel = self.prepare_kernel()
+        self.mapper_kernel = self.prepare_kernel(kernel)
 
     def perform_map(self):
         func = self.mapper_kernel.get_func()
@@ -309,10 +329,10 @@ class Mapper:
         return result_in_list, result_out_list
 
 
-def gpumap(func, _list):
+def gpumap(func, _list, kernel=None):
     def do_map():
         mapper = Mapper(func, _list)
-        mapper.prepare_map()
+        mapper.prepare_map(kernel=kernel)
         mapper.perform_map()
         result_in, result_out = time_func("deserialize", mapper.unpack_results)
         return result_out

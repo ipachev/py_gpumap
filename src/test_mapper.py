@@ -9,11 +9,22 @@ import math
 from util import time_func
 
 
+def sum(l):
+    s = 0
+    for i in range(len(l)):
+        l[i].b += 10
+        s += l[i].a
+    return s
+
+
+def do_sum(l):
+    return sum(l)
+
 class TestMapper:
     def __init__(self):
         self.items = [TestClassA(random.randint(0,30), random.randint(0,30), random.randint(0,30),
                       TestClassB(random.randint(0,30), random.randint(0,30), random.randint(0,30)))
-                      for _ in range(10000)]
+                      for _ in range(1000)]
 
     class TestClassD:
         def __init__(self, thing):
@@ -24,19 +35,15 @@ class TestMapper:
         pickle_str = pickle.dumps(self.items)
         items = [pickle.loads(pickle_str) for _ in range(10)]
         items_duplicate = [pickle.loads(pickle_str) for _ in range(10)]
-        def sum(l):
-            s = 0
-            for i in range(len(l)):
-                l[i].b += 1
-                s += l[i].a
-            return s
+        items_duplicate2 = [pickle.loads(pickle_str) for _ in range(10)]
 
-        gpu_output = time_func("gpu", mapper.gpumap, sum, items)
-        cpu_output = time_func("cpu", list, map(sum, items_duplicate))
+        gpu_output = time_func("gpu", mapper.gpumap, do_sum, items)
+        cpu_output = time_func("cpu", list, map(do_sum, items_duplicate))
 
-        for l1, l2 in zip(items, items_duplicate):
-            for gpu, cpu in zip(l1, l2):
+        for l1, l2, l3 in zip(items, items_duplicate, items_duplicate2):
+            for gpu, cpu, orig in zip(l1, l2, l3):
                 assert gpu.b == cpu.b
+                assert gpu.b == orig.b + 10
 
         for gpu, cpu in zip(gpu_output, cpu_output):
             assert gpu == cpu
@@ -64,10 +71,14 @@ class TestMapper:
         mapper.gpumap(a_func, foreach_items)
 
     def test_map(self):
+
+
         a_list = [TestClassC(i+1) for i in range(2000)]
         b_list = [TestClassC(1) for i in range(1000)]
         something = TestMapper.TestClassD(True)
         another_something = TestMapper.TestClassD(True)
+
+
         def thing(a):
             step = 2.3
             a_list[100].i = 1234 # bad practice. all threads will try to set this...
@@ -79,7 +90,8 @@ class TestMapper:
             for c in b_list:
                 b.increment_all(c.i)
             another_something.thing = False # bad practice all threads will try to set this
-            return b
+            c = test_func(b)
+            return c
 
 
         print("\n\nMAP TEST:\n")
@@ -135,6 +147,8 @@ class TestMapper:
         for i1, i2, i3 in zip(out_list, out_list2, out_list3):
             assert i1 == i2 == i3
 
+def test_func(b):
+    return b
 
 if __name__ == "__main__":
     tm = time_func("init objects", TestMapper)

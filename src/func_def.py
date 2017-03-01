@@ -5,7 +5,7 @@ from util import indent, dedent
 
 
 def get_type_label(_type, use_refs=False):
-    name = _type if isinstance(_type, str) else _type.__name__
+    name = _type if isinstance(_type, str) else "List_Ptr<%s>" % _type[1].__name__ if isinstance(_type, tuple) else _type.__name__
     if _type in primitive_map:
         return name
     elif use_refs:
@@ -116,6 +116,36 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_Expr(self, node):
         return self.visit(node.value)
 
+    def visit_Yield(self, node):
+        raise SyntaxError("generators not supported")
+
+    def visit_YieldFrom(self, node):
+        raise SyntaxError("generators not supported")
+
+    def visit_Lambda(self, node):
+        raise SyntaxError("lambdas not supported")
+
+    def visit_Bytes(self, node):
+        raise SyntaxError("bytes not supported")
+
+    def visit_Set(self, node):
+        raise SyntaxError("set not supported")
+
+    def visit_Dict(self, node):
+        raise SyntaxError("dict not supported")
+
+    def visit_Ellipsis(self, node):
+        raise SyntaxError("ellipsis not supported")
+
+    def visit_List(self, node):
+        raise SyntaxError("list declaration not supported")
+
+    def visit_Tuple(self, node):
+        raise SyntaxError("tuple declaration not supported")
+
+    def visit_Starred(self, node):
+        raise SyntaxError("star notation not supported")
+
     def visit_Assign(self, node):
         target = node.targets[0]
         # assignment into object field
@@ -126,7 +156,7 @@ class FunctionConverter(ast.NodeVisitor):
             # assignment into new variable
             # not sure about the type just yet..
             if target.id not in self.local_vars:
-                output += "auto &&"
+                output += "auto "
                 self.local_vars[target.id] = None
         output += self.visit(target)
 
@@ -149,23 +179,23 @@ class FunctionConverter(ast.NodeVisitor):
         return name + "(" + ", ".join(map(lambda a: self.visit(a), node.args)) + ")"
 
     def visit_Subscript(self, node):
-        return self.visit(node.value) + ".items" + self.visit(node.slice)
+        return self.visit(node.value) + self.visit(node.slice)
 
     def visit_Index(self, node):
-        return "[" + self.visit(node.value) + "]"
+        return ".items[" + self.visit(node.value) + "]"
 
     def visit_Slice(self, node):
-        raise Exception("list slice not supported")
+        raise SyntaxError("list slice not supported")
 
     def visit_ExtSlice(self, node):
-        raise Exception("list slice not supported")
+        raise SyntaxError("list slice not supported")
 
     def visit_AugAssign(self, node):
         target = self.visit(node.target)
         return target + " = " + target + self.visit(node.op) + self.visit(node.value)
 
     def visit_Return(self, node):
-        return "return " + self.visit(node.value)
+        return "return" + " " + self.visit(node.value) if node.value else ""
 
     def visit_Num(self, node):
         return str(node.n)
@@ -182,7 +212,7 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_Div(self, node):
         return " / "
 
-    def  visit_FloorDiv(self, node):
+    def visit_FloorDiv(self, node):
         return " / "
 
     def visit_Mod(self, node):
@@ -241,7 +271,12 @@ class FunctionConverter(ast.NodeVisitor):
         return "\"{str}\"".format(str=node.s)
 
     def visit_BinOp(self, node):
-        return "(" + self.visit(node.left) + self.visit(node.op) + self.visit(node.right) + ")"
+        if isinstance(node.op, _ast.Pow):
+            return "pow(" + self.visit(node.left) + ", " + self.visit(node.right) + ")"
+        output = "(" + self.visit(node.left) + self.visit(node.op) + self.visit(node.right) + ")"
+        if isinstance(node.op, _ast.FloorDiv):
+            output = "int" + output
+        return output
 
     def visit_UnaryOp(self, node):
         return "(" + self.visit(node.op) + self.visit(node.operand) + ")"
@@ -307,7 +342,7 @@ class FunctionConverter(ast.NodeVisitor):
                 if node.iter.func.id == "range":
                     return self.for_range(node, target)
                 else:
-                    raise Exception("Only for ... in range(...) is supported!")
+                    raise SyntaxError("Only for ... in range(...) is supported!")
 
             elif isinstance(node.iter, _ast.Name):
                 if node.iter.id in self.local_vars:
@@ -319,11 +354,11 @@ class FunctionConverter(ast.NodeVisitor):
                         list_type = var_type[var_type.find("<") + 1: var_type.rfind(">")]
                         return self.for_list(node, list_type, target, ptr=True)
                     else:
-                        raise Exception("cannot iterate over a non-list type")
+                        raise SyntaxError("cannot iterate over a non-list type")
                 else:
-                    raise Exception("no such variable found: " + node.iter.id)
+                    raise SyntaxError("no such variable found: " + node.iter.id)
         else:
-            raise Exception("Only one variable can be assigned in a for loop!")
+            raise SyntaxError("Only one variable can be assigned in a for loop!")
 
 
 
@@ -365,7 +400,7 @@ class FunctionConverter(ast.NodeVisitor):
             stop = self.visit(node.iter.args[1])
             step = self.visit(node.iter.args[2])
         else:
-            raise Exception("bad usage of range")
+            raise SyntaxError("bad usage of range")
 
         arg_str = ", ".join((start, stop, step))
         lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
@@ -446,7 +481,7 @@ class MethodConverter(FunctionConverter):
         output = ""
         if isinstance(target, _ast.Attribute) and isinstance(target.value, _ast.Name) and target.value.id == "self":
             if target.attr not in self.class_repr.field_names:
-                raise Exception("All fields must be declared and assigned in the constructor prior to re-assignment!")
+                raise SyntaxError("All fields must be declared and assigned in the constructor prior to re-assignment!")
             output += self.visit(target)
 
         # assignment into variable
@@ -454,7 +489,7 @@ class MethodConverter(FunctionConverter):
             # assignment into new variable
             # not sure about the type just yet..
             if target.id not in self.local_vars:
-                output += "auto && "
+                output += "auto "
                 self.local_vars[target.id] = None
             output += self.visit(target)
         output += " = " + self.visit(node.value)
