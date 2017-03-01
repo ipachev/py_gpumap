@@ -6,7 +6,7 @@ from util import time_func
 
 class TestSort:
     def __init__(self):
-        self.lists = [[randint(0, 1000000) for _ in range(10000)] for _ in range(100)]
+        self.lists = [[randint(0, 1000000) for _ in range(1000)] for _ in range(1000)]
         pickle_str = dumps(self.lists)
         self.lists2 = loads(pickle_str)
         self.lists3 = loads(pickle_str)

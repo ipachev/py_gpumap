@@ -3,6 +3,7 @@ from examiner import FunctionCallExaminer
 from data_model import ExtractedClasses, Functions
 from class_def import ClassDefGenerator
 from func_def import MethodDefGenerator, FunctionDefGenerator
+from builtin import builtin
 
 from pycuda import autoinit
 import pycuda.driver as cuda
@@ -29,7 +30,7 @@ class TestTranslation:
 
         cls_def_gen = ClassDefGenerator()
 
-        kernel = cls_def_gen.all_cpp_class_defs(class_reprs)
+        kernel = builtin + "\n" + cls_def_gen.all_cpp_class_defs(class_reprs)
 
         fn_def_gen = FunctionDefGenerator()
         kernel += fn_def_gen.all_func_protos(func_reprs) + "\n"
