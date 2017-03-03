@@ -1,4 +1,4 @@
-import ast, _ast, inspect
+import ast, _ast, inspect, itertools
 
 from data_model import primitive_map, built_in_functions
 from util import indent, dedent
@@ -18,15 +18,16 @@ class FunctionDefGenerator:
     def all_func_protos(self, func_reprs):
         lines = []
         for func_repr in func_reprs.functions.values():
-            line = self.create_proto(func_repr) + "\n"
-            lines.append(line)
-
-            if func_repr.has_nonprimitive_args():
-                line = self.create_proto(func_repr, True) + "\n"
+            ref_lists = itertools.product([True, False], repeat=len(list(filter(lambda a: a not in primitive_map, func_repr.arg_types))))
+            for ref_list in ref_lists:
+                iter_ref_list = iter(ref_list)
+                whole_ref_list = [False if t in primitive_map else next(iter_ref_list) for t in func_repr.arg_types]
+                line = self.create_proto(func_repr, whole_ref_list) + "\n"
                 lines.append(line)
+
         return "\n".join(lines)
 
-    def create_proto(self, func_repr, use_ref=False):
+    def create_proto(self, func_repr, refs):
         if func_repr.return_type is type(None):
             return_type = "void"
         else:
@@ -34,8 +35,8 @@ class FunctionDefGenerator:
 
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
-            zip(map(lambda t: get_type_label(t, use_ref),
-                    func_repr.arg_types), func_repr.args)))
+            zip(map(lambda t: get_type_label(t[0], t[1]),
+                    zip(func_repr.arg_types, refs)), func_repr.args)))
         line = "__device__ {return_type} {name}({arg_list});".format(return_type=return_type,
                                                                      name=func_repr.name,
                                                                      arg_list=arg_list)
@@ -44,11 +45,12 @@ class FunctionDefGenerator:
     def all_func_defs(self, func_reprs):
         lines = []
         for func_repr in func_reprs.functions.values():
-            func_conv = FunctionConverter(func_repr)
-            lines.append(func_conv.convert())
-
-            if func_repr.has_nonprimitive_args():
-                func_conv = FunctionConverter(func_repr, True)
+            ref_lists = itertools.product([True, False], repeat=len(list(
+                filter(lambda a: a not in primitive_map, func_repr.arg_types))))
+            for ref_list in ref_lists:
+                iter_ref_list = iter(ref_list)
+                whole_ref_list = [False if t in primitive_map else next(iter_ref_list) for t in func_repr.arg_types]
+                func_conv = FunctionConverter(func_repr, refs=whole_ref_list)
                 lines.append(func_conv.convert())
 
         return "\n".join(lines)
@@ -61,24 +63,26 @@ class MethodDefGenerator(FunctionDefGenerator):
     def all_method_defs(self, class_repr):
         method_outputs = []
         for method_repr in class_repr.methods:
-            converter = MethodConverter(class_repr, method_repr)
-            method_output = converter.convert()
-            method_outputs.append(method_output)
-            if method_repr.has_nonprimitive_args():
-                converter = MethodConverter(class_repr, method_repr, True)
+            ref_lists = itertools.product([True, False], repeat=len(list(
+                filter(lambda a: a not in primitive_map, method_repr.arg_types[1:]))))
+            for ref_list in ref_lists:
+                iter_ref_list = iter(ref_list)
+                whole_ref_list = [True] + [False if t in primitive_map else next(iter_ref_list) for t in method_repr.arg_types[1:]]
+                converter = MethodConverter(class_repr, method_repr, refs=whole_ref_list)
                 method_output = converter.convert()
                 method_outputs.append(method_output)
         return "\n".join(method_outputs) + "\n"
 
 class FunctionConverter(ast.NodeVisitor):
-    def __init__(self, func_repr, use_refs=False):
+    def __init__(self, func_repr, refs=None):
         self.func_repr = func_repr
-        self.use_refs = use_refs
+        self.refs = refs if refs else [False for _ in func_repr.arg_types]
         # local vars store the types of all the local vars
         self.local_vars = {}
         self.ast = None
         self.indent_level = 0
         self.iter_counter = 0
+        self.func_defined = False
 
     def increase_indent(self):
         self.indent_level += 1
@@ -117,53 +121,101 @@ class FunctionConverter(ast.NodeVisitor):
         return self.visit(node.value)
 
     def visit_Yield(self, node):
-        raise SyntaxError("generators not supported")
+        raise SyntaxError("GPUMAP: generators not supported")
 
     def visit_YieldFrom(self, node):
-        raise SyntaxError("generators not supported")
+        raise SyntaxError("GPUMAP: generators not supported")
 
     def visit_Lambda(self, node):
-        raise SyntaxError("lambdas not supported")
+        raise SyntaxError("GPUMAP: lambdas not supported")
 
     def visit_Bytes(self, node):
-        raise SyntaxError("bytes not supported")
+        raise SyntaxError("GPUMAP: bytes not supported")
 
     def visit_Set(self, node):
-        raise SyntaxError("set not supported")
+        raise SyntaxError("GPUMAP: set not supported")
 
     def visit_Dict(self, node):
-        raise SyntaxError("dict not supported")
+        raise SyntaxError("GPUMAP: dict not supported")
 
     def visit_Ellipsis(self, node):
-        raise SyntaxError("ellipsis not supported")
+        raise SyntaxError("GPUMAP: ellipsis not supported")
 
     def visit_List(self, node):
-        raise SyntaxError("list declaration not supported")
+        raise SyntaxError("GPUMAP: list declaration not supported")
 
     def visit_Tuple(self, node):
-        raise SyntaxError("tuple declaration not supported")
+        raise SyntaxError("GPUMAP: tuple declaration not supported")
 
     def visit_Starred(self, node):
-        raise SyntaxError("star notation not supported")
+        raise SyntaxError("GPUMAP: star notation not supported")
+
+    def visit_Import(self, node):
+        raise SyntaxError("GPUMAP: import not supported in function body")
+
+    def visit_ImportFrom(self, node):
+        raise SyntaxError("GPUMAP: import not supported in function body")
 
     def visit_Assign(self, node):
+        if len(node.targets) > 1:
+            raise SyntaxError("GPUMAP: multiple assignment not supported")
+
+        target_types = map(lambda target: type(target), node.targets)
+        if tuple in target_types or list in target_types:
+            raise SyntaxError("GPUMAP: No unpacking allowed")
+
+
         target = node.targets[0]
         # assignment into object field
         output = ""
+
+        value = self.visit(node.value)
 
         # assignment into variable
         if isinstance(target, _ast.Name):
             # assignment into new variable
             # not sure about the type just yet..
+
+            # see if it's a primitive
             if target.id not in self.local_vars:
-                output += "auto "
+                # binops and boolops return primitives
+                if isinstance(node.value, _ast.Num) or isinstance(node.value, _ast.Compare) or isinstance(node.value, _ast.BinOp) \
+                        or isinstance(node.value, _ast.BoolOp) or isinstance(node.value, _ast.NameConstant):
+                    output += "auto "
+
+                # check if referenced list contains primitives
+                elif isinstance(node.value, _ast.Subscript):
+                    list_name = value[:value.find("[")]
+                    try:
+                        idx = self.func_repr.args.index(list_name)
+                        t = self.func_repr.arg_types[idx]
+                        item_type = t[t.find("<") + 1: t.find(">")]
+                        if item_type in map(lambda t: t.__name__, primitive_map.keys()):
+                            output += "auto "
+                        else:
+                            output += "auto&& "
+                    except:
+                        raise RuntimeError("THIS SHOULD NEVER HAPPEN")
+                else:
+                    # check if it's an existing variable
+                    try:
+                        idx = self.func_repr.args.index(value)
+                        t = self.func_repr.arg_types[idx]
+                        if t in primitive_map:
+                            output += "auto "
+                        else:
+                            output += "auto&& "
+                    except ValueError:
+                        output += "auto&& "
                 self.local_vars[target.id] = None
         output += self.visit(target)
-
-        output += " = " + self.visit(node.value)
+        output += " = " + value
         return output
 
     def visit_Call(self, node):
+        if node.keywords:
+            raise SyntaxError("GPUMAP: keywords not supported")
+
         name = self.visit(node.func)
         split_name = name.split(".")
         found = True
@@ -181,21 +233,81 @@ class FunctionConverter(ast.NodeVisitor):
     def visit_Subscript(self, node):
         return self.visit(node.value) + self.visit(node.slice)
 
+    def visit_Is(self, node):
+        raise SyntaxError("GPUMAP: is is not supported")
+
+    def visit_IsNot(self, node):
+        raise SyntaxError("GPUMAP: is not is not supported")
+
+    def visit_In(self, node):
+        raise SyntaxError("GPUMAP: in is not supported")
+
+    def visit_NotIn(self, node):
+        raise SyntaxError("GPUMAP: not in is not supported")
+
     def visit_Index(self, node):
-        return ".items[" + self.visit(node.value) + "]"
+        return "[" + self.visit(node.value) + "]"
 
     def visit_Slice(self, node):
-        raise SyntaxError("list slice not supported")
+        raise SyntaxError("GPUMAP: list slice not supported")
 
     def visit_ExtSlice(self, node):
-        raise SyntaxError("list slice not supported")
+        raise SyntaxError("GPUMAP: list slice not supported")
+
+    def visit_ListComp(self, node):
+        raise SyntaxError("GPUMAP: list comp not supported")
+
+    def visit_SetComp(self, node):
+        raise SyntaxError("GPUMAP: set comp not supported")
+
+    def visit_GeneratorExp(self, node):
+        raise SyntaxError("GPUMAP: generator exp not supported")
+
+    def visit_DictComp(self, node):
+        raise SyntaxError("GPUMAP: dict comp not supported")
+
+    def visit_Raise(self, node):
+        raise SyntaxError("GPUMAP: raising exceptions not supported")
+
+    def visit_Assert(self, node):
+        raise SyntaxError("GPUMAP: assert not supported")
+
+    def visit_Delete(self, node):
+        raise SyntaxError("GPUMAP: delete not supported")
+
+    def visit_Try(self, node):
+        raise SyntaxError("GPUMAP: try not supported")
+
+    def visit_With(self, node):
+        raise SyntaxError("GPUMAP: with not supported")
+
+    def visit_Global(self, node):
+        raise SyntaxError("GPUMAP: global not supported")
+
+    def visit_Nonlocal(self, node):
+        raise SyntaxError("GPUMAP: nonlocal not supported")
+
+    def visit_ClassDef(self, node):
+        raise SyntaxError("GPUMAP: class def not supported in function body")
+
+    def visit_AsyncFunctionDef(self, node):
+        raise SyntaxError("GPUMAP: async function def not supported")
+
+    def visit_Await(self, node):
+        raise SyntaxError("GPUMAP: await not supported")
+
+    def visit_AsyncFor(self, node):
+        raise SyntaxError("GPUMAP: async for not supported")
+
+    def visit_AsyncWith(self, node):
+        raise SyntaxError("GPUMAP: async with not supported")
 
     def visit_AugAssign(self, node):
         target = self.visit(node.target)
         return target + " = " + target + self.visit(node.op) + self.visit(node.value)
 
     def visit_Return(self, node):
-        return "return" + " " + self.visit(node.value) if node.value else ""
+        return "return" + ((" " + self.visit(node.value)) if node.value else "")
 
     def visit_Num(self, node):
         return str(node.n)
@@ -217,6 +329,9 @@ class FunctionConverter(ast.NodeVisitor):
 
     def visit_Mod(self, node):
         return " % "
+
+    def visit_MatMult(self, node):
+        raise SyntaxError("GPUMAP: matrix multiply operator not supported")
 
     def visit_LShift(self, node):
         return " << "
@@ -342,7 +457,7 @@ class FunctionConverter(ast.NodeVisitor):
                 if node.iter.func.id == "range":
                     return self.for_range(node, target)
                 else:
-                    raise SyntaxError("Only for ... in range(...) is supported!")
+                    raise SyntaxError("GPUMAP: Only for ... in range(...) is supported!")
 
             elif isinstance(node.iter, _ast.Name):
                 if node.iter.id in self.local_vars:
@@ -354,11 +469,11 @@ class FunctionConverter(ast.NodeVisitor):
                         list_type = var_type[var_type.find("<") + 1: var_type.rfind(">")]
                         return self.for_list(node, list_type, target, ptr=True)
                     else:
-                        raise SyntaxError("cannot iterate over a non-list type")
+                        raise SyntaxError("GPUMAP: cannot iterate over a non-list type")
                 else:
-                    raise SyntaxError("no such variable found: " + node.iter.id)
+                    raise SyntaxError("GPUMAP: no such variable found: " + node.iter.id)
         else:
-            raise SyntaxError("Only one variable can be assigned in a for loop!")
+            raise SyntaxError("GPUMAP: Only one variable can be assigned in a for loop!")
 
 
 
@@ -400,7 +515,7 @@ class FunctionConverter(ast.NodeVisitor):
             stop = self.visit(node.iter.args[1])
             step = self.visit(node.iter.args[2])
         else:
-            raise SyntaxError("bad usage of range")
+            raise SyntaxError("GPUMAP: bad usage of range")
 
         arg_str = ", ".join((start, stop, step))
         lines.append("auto %s = RangeIterator(%s);" % (this_iterator, arg_str))
@@ -422,19 +537,24 @@ class FunctionConverter(ast.NodeVisitor):
             line = self.indent() + self.visit(stmt) + self.semicolon(stmt)
             lines.append(line)
         self.decrease_indent()
-        lines.append(self.indent() + "} else {")
-        self.increase_indent()
-        for stmt in node.orelse:
-            lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
-        self.decrease_indent()
+        if node.orelse:
+            lines.append(self.indent() + "} else {")
+            self.increase_indent()
+            for stmt in node.orelse:
+                lines.append(self.indent() + self.visit(stmt) + self.semicolon(stmt))
+            self.decrease_indent()
         lines.append(self.indent() + "}")
         return "\n".join(lines)
 
     def visit_FunctionDef(self, node):
+        if self.func_defined:
+            raise SyntaxError("GPUMAP: function definition not supported in function body")
+
+        self.func_defined = True
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
-               zip(map(lambda t: get_type_label(t, self.use_refs),
-                       self.func_repr.arg_types), self.func_repr.args)))
+               zip(map(lambda t: get_type_label(t[0], t[1]),
+                       zip(self.func_repr.arg_types, self.refs)), self.func_repr.args)))
 
         func_name = self.func_repr.name
         if self.func_repr.return_type == type(None):
@@ -453,8 +573,8 @@ class FunctionConverter(ast.NodeVisitor):
 
 
 class MethodConverter(FunctionConverter):
-    def __init__(self, class_repr, method_repr, *args):
-        super().__init__(method_repr, *args)
+    def __init__(self, class_repr, method_repr, *args, **kwargs):
+        super().__init__(method_repr, *args, **kwargs)
         # class_repr tells us field types
         # method repr tells us arg types and return type
         self.class_repr = class_repr
@@ -476,32 +596,85 @@ class MethodConverter(FunctionConverter):
             return node.id
 
     def visit_Assign(self, node):
+        if len(node.targets) > 1:
+            raise SyntaxError("GPUMAP: multiple assignment not supported")
+
+        target_types = map(lambda target: type(target), node.targets)
+        if tuple in target_types or list in target_types:
+            raise SyntaxError("GPUMAP: No unpacking allowed")
+
         target = node.targets[0]
+        value = self.visit(node.value)
         # assignment into object field
         output = ""
         if isinstance(target, _ast.Attribute) and isinstance(target.value, _ast.Name) and target.value.id == "self":
             if target.attr not in self.class_repr.field_names:
-                raise SyntaxError("All fields must be declared and assigned in the constructor prior to re-assignment!")
-            output += self.visit(target)
-
+                raise SyntaxError("GPUMAP: All fields must be declared and assigned in the constructor prior to re-assignment!")
         # assignment into variable
         elif isinstance(target, _ast.Name):
             # assignment into new variable
             # not sure about the type just yet..
+
+            # see if it's a primitive
+            # see if it's a primitive
             if target.id not in self.local_vars:
-                output += "auto "
+                if isinstance(node.value, _ast.Attribute) and isinstance(node.value.value, _ast.Name) and node.value.value.id == "self":
+                    try:
+                        idx = self.class_repr.field_names.index(node.value.attr)
+                        t = self.class_repr.field_types[idx]
+                        if t in primitive_map:
+                            output += "auto "
+                        else:
+                            output += "auto&& "
+                    except ValueError:
+                        raise RuntimeError("SHOULD NEVER HAPPEN!!!")
+
+                # binops and boolops return primitives
+                elif isinstance(node.value, _ast.Num) or isinstance(node.value, _ast.Compare) or isinstance(node.value,
+                                                                                                          _ast.BinOp) \
+                        or isinstance(node.value, _ast.BoolOp) or isinstance(node.value, _ast.NameConstant):
+                    output += "auto "
+
+                # check if referenced list contains primitives
+                elif isinstance(node.value, _ast.Subscript):
+                    list_name = value[:value.find("[")]
+                    try:
+                        idx = self.func_repr.args.index(list_name)
+                        t = self.func_repr.arg_types[idx]
+                        item_type = t[t.find("<") + 1: t.find(">")]
+                        if item_type in map(lambda t: t.__name__, primitive_map.keys()):
+                            output += "auto "
+                        else:
+                            output += "auto&& "
+                    except:
+                        raise RuntimeError("THIS SHOULD NEVER HAPPEN")
+                else:
+                    # check if it's an existing variable
+                    try:
+                        idx = self.func_repr.args.index(value)
+                        t = self.func_repr.arg_types[idx]
+                        if t in primitive_map:
+                            output += "auto "
+                        else:
+                            output += "auto&& "
+                    except ValueError:
+                        output += "auto&& "
                 self.local_vars[target.id] = None
-            output += self.visit(target)
-        output += " = " + self.visit(node.value)
+        output += self.visit(target)
+        output += " = " + value
         return output
 
 
     def visit_FunctionDef(self, node):
+        if self.func_defined:
+            raise SyntaxError("GPUMAP: function definition not supported in function body")
+
+        self.func_defined = True
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
             filter(lambda pair: pair[1] != "self",
-                   zip(map(lambda t: get_type_label(t, self.use_refs),
-                           self.method_repr.arg_types), self.method_repr.args))))
+                   zip(map(lambda t: get_type_label(t[0], t[1]),
+                           zip(self.method_repr.arg_types, self.refs)), self.method_repr.args))))
 
         if self.method_repr.is_constructor():
             return_type = ""

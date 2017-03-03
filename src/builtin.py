@@ -16,6 +16,7 @@ class List_Ptr {
     public:
         int length;
         T *items;
+        __device__ T& operator [](int i) {return items[i];};
 };
 
 template<class T>
@@ -50,6 +51,7 @@ class List {
     public:
         int length;
         T items[];
+        __device__ T& operator [](int i) {return items[i];};
 };
 
 template<class T>

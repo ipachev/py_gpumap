@@ -1,7 +1,6 @@
 from serialization import ListSerializer
 from data_model import ExtractedClasses
 from class_def import ClassDefGenerator
-from test_util import TestClassA, TestClassB, TestClassC
 
 import random
 from copy import deepcopy
@@ -10,30 +9,43 @@ from pycuda import autoinit
 import pycuda.driver as cuda
 from pycuda.compiler import SourceModule
 
-class TestSerialization:
-    def __init__(self):
-        pass
+class TestClassA:
+    def __init__(self, a, b, c, o):
+        self.a = a
+        self.b = b
+        self.c = c
+        self.d = 0
+        self.o = o
 
+class TestClassB:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.q = TestClassC(1)
+
+class TestClassC:
+    def __init__(self, i):
+        self.i = i
+
+class TestSerialization:
     def test_serialize_deserialize_object(self):
         class_reprs = ExtractedClasses()
 
-        items = []
-        for i in range(1000):
-            item = TestClassA(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11),
-                              TestClassB(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11)))
-            items.append(item)
+        items = [TestClassA(random.randint(0, 100), random.randint(100, 200), random.randint(200, 300),
+                            TestClassB(random.randint(0, 100), random.randint(100, 200), random.randint(200, 300)))
+                 for _ in range(1000)]
 
         duplicate_items = deepcopy(items)
 
         candidate_item = items[0]
-
         class_repr = class_reprs.extract(candidate_item)
         serializer = ListSerializer(class_repr, items)
 
         bytes = serializer.to_bytes()
 
-        new_items = serializer.from_bytes(bytes) #unpack back into same
-        assert items is new_items
+        new_items = serializer.from_bytes(bytes) # unpack back into same list
+        assert new_items is items
 
         assert len(duplicate_items) == len(new_items)
         for i1, i2 in zip(duplicate_items, new_items):
@@ -41,7 +53,6 @@ class TestSerialization:
             assert i1.b == i2.b
             assert i1.c == i2.c
             assert i1.d == i2.d
-            assert isinstance(i1.e, TestClassC) and isinstance(i2.e, TestClassC)
             assert i1.o.x == i2.o.x
             assert i1.o.y == i2.o.y
             assert i1.o.z == i2.o.z
@@ -50,15 +61,16 @@ class TestSerialization:
         print("passed object to_bytes test")
 
         serializer2 = ListSerializer(class_repr, length=len(items))
-        new_new_items = serializer2.create_output_list(bytes, candidate_item)
 
-        assert len(duplicate_items) == len(new_new_items)
-        for i1, i2 in zip(duplicate_items, new_new_items):
+        output_list = serializer2.create_output_list(bytes, candidate_item)
+        assert output_list is not items
+
+        assert len(duplicate_items) == len(output_list)
+        for i1, i2 in zip(duplicate_items, output_list):
             assert i1.a == i2.a
             assert i1.b == i2.b
             assert i1.c == i2.c
             assert i1.d == i2.d
-            assert isinstance(i1.e, TestClassC) and isinstance(i2.e, TestClassC)
             assert i1.o.x == i2.o.x
             assert i1.o.y == i2.o.y
             assert i1.o.z == i2.o.z
@@ -69,10 +81,7 @@ class TestSerialization:
     def test_serialize_deserialize_primitives(self):
         class_reprs = ExtractedClasses()
 
-        items = []
-        for i in range(1000):
-            item = random.randint(0,1024)
-            items.append(item)
+        items = [random.randint(0, 1024) for _ in range(1000)]
 
         duplicate_items = deepcopy(items)
 
@@ -85,6 +94,7 @@ class TestSerialization:
 
         new_items = serializer.from_bytes(bytes)  # unpacking primitives doesnt go in the same list
 
+
         assert len(duplicate_items) == len(new_items)
         for i1, i2 in zip(duplicate_items, new_items):
             assert i1 == i2
@@ -92,21 +102,19 @@ class TestSerialization:
         print("passed primitive to_bytes test")
 
         serializer2 = ListSerializer(class_repr, length=len(items))
-        new_new_items = serializer2.create_output_list(bytes, candidate_item)
+        output_list = serializer2.create_output_list(bytes, candidate_item)
 
-        assert len(duplicate_items) == len(new_new_items)
-        for i1, i2 in zip(duplicate_items, new_new_items):
+        assert len(duplicate_items) == len(output_list)
+        for i1, i2 in zip(duplicate_items, output_list):
             assert i1 == i2
 
         print("passed primitive create_output_list test")
 
     def test_gpu(self):
         class_reprs = ExtractedClasses()
-        items = []
-        for i in range(1000):
-            item = TestClassA(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11),
-                              TestClassB(random.randint(0, 3), random.randint(3, 7), random.randint(7, 11)))
-            items.append(item)
+        items = [TestClassA(random.randint(0, 100), random.randint(100, 200), random.randint(200, 300),
+                            TestClassB(random.randint(0, 100), random.randint(100, 200), random.randint(200, 300)))
+                 for _ in range(1000)]
 
         candidate_item = items[0]
         class_repr = class_reprs.extract(candidate_item)
@@ -114,23 +122,22 @@ class TestSerialization:
         serializer = ListSerializer(class_repr, items)
         bytes = serializer.to_bytes()
 
-
         cls_def_gen = ClassDefGenerator()
         from builtin import builtin
 
         kernel = builtin + cls_def_gen.all_cpp_class_defs(class_reprs) + """
 extern "C" {
-__global__ void stuff(List<TestClassA> *things) {
-  int val = things->items[threadIdx.x].a;
-  int val2 = things->items[threadIdx.x].b;
-  int val3 = things->items[threadIdx.x].o.x;
-  things->items[threadIdx.x].o.x = val * val2 * val3;
+__global__ void test(List<TestClassA> *things) {
+  List<TestClassA> &things_ref = *things;
+  int val = things_ref[threadIdx.x].a;
+  int val2 = things_ref[threadIdx.x].b;
+  int val3 = things_ref[threadIdx.x].o.x;
+  things_ref[threadIdx.x].o.x = val * val2 * val3;
 }
 }
 """
-        print(kernel)
         mod = SourceModule(kernel, options=["--std=c++11"], no_extern_c=True)
-        stuff = mod.get_function("stuff")
+        stuff = mod.get_function("test")
 
         list_ptr = cuda.to_device(bytes)
         new_bytes = bytearray(len(bytes))
@@ -147,8 +154,8 @@ __global__ void stuff(List<TestClassA> *things) {
             assert item.o.x * item.a * item.b == new_item.o.x
             assert item.o.y == new_item.o.y
             assert item.o.z == new_item.o.z
-        print("GPUTest done!")
 
+        print("GPUTest done!")
 
 
 if __name__ == "__main__":

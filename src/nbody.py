@@ -1,6 +1,5 @@
 from mapper import gpumap
-import util
-from util import get_time
+from util import get_time, Results
 
 from random import uniform
 import pickle
@@ -69,30 +68,32 @@ class BodyGenerator:
     def get_copy(self):
         return pickle.loads(self.pickled_bodies)
 
+
 class Simulation:
     def __init__(self, bodies, num_steps):
         self.bodies = bodies
         self.indices = list(range(len(bodies)))
         self.dt = 0.01
+        self.padding = 0.0000001
         self.num_steps = num_steps
 
-    def advance(self, dt):
+    def advance(self, dt, padding):
         pass
 
     def run(self):
         for _ in range(self.num_steps):
-            self.advance(self.dt)
+            self.advance(self.dt, self.padding)
 
 
 class GPU_Simulation(Simulation):
-    def advance(self, dt):
+    def advance(self, dt, padding):
         bodies = self.bodies
 
         def calc_vel(i):
             b1 = bodies[i]
             for b2 in bodies:
                 d_pos = b1.pos.sub(b2.pos)
-                distance = d_pos.length() + 0.0000001
+                distance = d_pos.length() + padding
                 mag = dt / math.pow(distance, 3)
                 b1.vel = b1.vel.sub(d_pos.scale(b2.mass).scale(mag))
 
@@ -105,14 +106,14 @@ class GPU_Simulation(Simulation):
 
 
 class CPU_Simulation(Simulation):
-    def advance(self, dt):
+    def advance(self, dt, padding):
         bodies = self.bodies
 
         def calc_vel(i):
             b1 = bodies[i]
             for b2 in bodies:
                 d_pos = b1.pos.sub(b2.pos)
-                distance = d_pos.length() + 0.0000001
+                distance = d_pos.length() + padding
                 mag = dt / math.pow(distance, 3)
                 b1.vel = b1.vel.sub(d_pos.scale(b2.mass).scale(mag))
 
@@ -129,8 +130,7 @@ def test():
     with open("nbodies_out.csv", "w") as f:
         print("num_bodies,gpu_time,cpu_time", file=f)
         num_bodies = 2
-        while num_bodies < 10:
-            util.Results.clear_results()
+        while num_bodies <= 8192:
             print("num bodies", num_bodies)
             body_gen = BodyGenerator(num_bodies)
             body_gen.generate_bodies()
@@ -144,29 +144,20 @@ def test():
             cpu_time = get_time(cpu_sim.run)
 
             for gpu_body, cpu_body in zip(gpu_bodies, cpu_bodies):
-                try:
-                    assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.001
-                    assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.001
-                    assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.001
-                    assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.001
-                    assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.001
-                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
-                    assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
-                    assert abs(gpu_body.mass - cpu_body.mass) < 0.001
-                except:
-                    print(gpu_body.pos.x, cpu_body.pos.x)
-                    print(gpu_body.pos.y, cpu_body.pos.y)
-                    print(gpu_body.pos.z, cpu_body.pos.z)
-                    print(gpu_body.vel.x, cpu_body.vel.x)
-                    print(gpu_body.vel.y, cpu_body.vel.y)
-                    print(gpu_body.vel.z, cpu_body.vel.z)
-                    print(gpu_body.mass, cpu_body.mass)
+                assert abs(gpu_body.pos.x - cpu_body.pos.x) < 0.001
+                assert abs(gpu_body.pos.y - cpu_body.pos.y) < 0.001
+                assert abs(gpu_body.pos.z - cpu_body.pos.z) < 0.001
+                assert abs(gpu_body.vel.x - cpu_body.vel.x) < 0.001
+                assert abs(gpu_body.vel.y - cpu_body.vel.y) < 0.001
+                assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
+                assert abs(gpu_body.vel.z - cpu_body.vel.z) < 0.001
+                assert abs(gpu_body.mass - cpu_body.mass) < 0.001
 
 
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()
             num_bodies *= 2
-            util.Results.output_results("num_bodies{}.csv".format(num_bodies))
+            Results.output_results("nbody", "num_bodies{}.csv".format(num_bodies))
 
 
 def warmup():

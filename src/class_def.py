@@ -3,6 +3,7 @@ from util import indent
 from data_model import primitive_map, ClassRepresentation, convert_float
 
 from collections import defaultdict
+import itertools
 
 
 class ClassDefGenerator:
@@ -51,12 +52,9 @@ class ClassDefGenerator:
             output += indent(2) + "{type} {arg};\n".format(arg=arg, type=name)
 
         output += indent(2) + "__device__ %s(){};\n" % class_repr.name
-        output += self.copy_constructor(class_repr) + "\n"
 
         methods = self.methods(class_repr)
         output +=  methods + ("\n" if methods != "" else "")
-        ref_methods = self.ref_methods(class_repr)
-        output += ref_methods + ("\n" if ref_methods != "" else "")
 
         output += "};\n"
         return output
@@ -72,16 +70,22 @@ class ClassDefGenerator:
     def methods(self, class_repr):
         protos = []
         for method in class_repr.methods:
-            protos.append(self.method(class_repr, method))
+            ref_lists = itertools.product([True, False], repeat=len(list(
+                filter(lambda a: a not in primitive_map, method.arg_types[1:]))))
+            for ref_list in ref_lists:
+                iter_ref_list = iter(ref_list)
+                whole_ref_list = [True] + [False if t in primitive_map else next(iter_ref_list) for t in method.arg_types[1:]]
+                print(method.cls, method.name, whole_ref_list)
+                protos.append(self.method(class_repr, method, refs=whole_ref_list))
         return "\n".join(protos)
 
-    def method(self, class_repr, method_repr, use_refs=False):
+    def method(self, class_repr, method_repr, refs):
         lines = []
         arg_list = ", ".join(map(
             lambda pair: "{} {}".format(pair[0], pair[1]),
             filter(lambda pair: pair[1] != "self",
-                   zip(map(lambda t: self.get_type_label(t, use_refs),
-                           method_repr.arg_types), method_repr.args))))
+                   zip(map(lambda t: self.get_type_label(t[0], t[1]),
+                           zip(method_repr.arg_types, refs)), method_repr.args))))
         if method_repr.is_constructor():
             lines.append("__device__ {class_name} ({args});".format(class_name=class_repr.name, args=arg_list))
         else:
@@ -90,21 +94,4 @@ class ClassDefGenerator:
                 return_type=return_type,
                 method_name=method_repr.name,
                 args=arg_list))
-        return "\n".join(map(lambda l: indent(2) + l, lines))
-
-    def ref_methods(self, class_repr):
-        protos = []
-        for method in class_repr.methods:
-            # if the method has at least one arg not as a primitive type, then we need a ref version of the method
-            if method.has_nonprimitive_args():
-                protos.append(self.method(class_repr, method, use_refs=True))
-        return "\n".join(protos)
-
-
-    def copy_constructor(self, class_repr):
-        lines = []
-        lines.append("__device__ %s(const %s& other) {" % (class_repr.name, class_repr.name))
-        for field in class_repr.field_names:
-            lines.append(indent(1) + "(*this).%s = other.%s;" % (field, field))
-        lines.append("};")
         return "\n".join(map(lambda l: indent(2) + l, lines))
