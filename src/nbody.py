@@ -156,8 +156,9 @@ def test():
 
             print("{},{},{}".format(num_bodies, gpu_time, cpu_time), file=f)
             f.flush()
-            num_bodies *= 2
             Results.output_results("nbody", "num_bodies{}.csv".format(num_bodies))
+            Results.clear_results()
+            num_bodies *= 2
 
 
 def warmup():

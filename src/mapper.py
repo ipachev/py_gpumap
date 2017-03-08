@@ -165,7 +165,10 @@ class MapperKernel:
 
     def get_func(self):
         self._build_module()
-        return self.func
+        def f(*args, **kwargs):
+            self.func(*args, **kwargs)
+            cuda.Context.synchronize()
+        return f
 
 
 class Mapper:

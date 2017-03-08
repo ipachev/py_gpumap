@@ -641,7 +641,6 @@ class TestFunctionConverter(TestCase):
                          self.fc.visit(node))
 
     def test_lessthan(self):
-        # object comparison not yet supported
         node = ast.parse("1 < 3")
         self.assertEqual("(1 < 3)", self.fc.visit(node))
 
@@ -665,7 +664,6 @@ class TestFunctionConverter(TestCase):
                          self.fc.visit(node))
 
     def test_lessthaneq(self):
-        # object comparison not yet supported
         node = ast.parse("1 <= 3")
         self.assertEqual("(1 <= 3)", self.fc.visit(node))
 
@@ -689,7 +687,6 @@ class TestFunctionConverter(TestCase):
                          self.fc.visit(node))
 
     def test_greaterthan(self):
-        # object comparison not yet supported
         node = ast.parse("1 > 3")
         self.assertEqual("(1 > 3)", self.fc.visit(node))
 
@@ -713,7 +710,6 @@ class TestFunctionConverter(TestCase):
                          self.fc.visit(node))
 
     def test_greaterthaneq(self):
-        # object comparison not yet supported
         node = ast.parse("1 >= 3")
         self.assertEqual("(1 >= 3)", self.fc.visit(node))
 
@@ -737,7 +733,6 @@ class TestFunctionConverter(TestCase):
                          self.fc.visit(node))
 
     def test_lessthan(self):
-        # object comparison not yet supported
         node = ast.parse("1 < 3")
         self.assertEqual("(1 < 3)", self.fc.visit(node))
 

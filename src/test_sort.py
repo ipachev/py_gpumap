@@ -14,7 +14,7 @@ class TestSort:
         time_func("bubble gpu", gpumap, bubblesort, self.lists)
         time_func("bubble cpu", list, map(bubblesort, self.lists2))
 
-        for l1, l2, l3, i in zip(self.lists, self.lists2, self.sorted):
+        for l1, l2, l3 in zip(self.lists, self.lists2, self.sorted):
             for i1, i2, i3 in zip(l1, l2, l3):
                 assert i1 == i2 == i3
 

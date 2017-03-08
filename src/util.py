@@ -2,7 +2,6 @@ from time import perf_counter
 import os
 
 
-
 class Results:
     results_dir = os.path.join(os.getenv("HOME"), ".ivan_results")
     os.makedirs(results_dir, exist_ok=True)
@@ -22,7 +21,7 @@ class Results:
         os.makedirs(path, exist_ok=True)
         path = os.path.join(path, file_name)
         print("saving file", path)
-        with open(path, "a") as f:
+        with open(path, "w") as f:
             print("first_call,code_gen,serialize,run,deserialize,total", file=f)
             for code_gen, serialize_closure, serialize_input, first_call, run_kernel, deserialize, total in zip(
                     Results.results[Results.columns[0]], Results.results[Results.columns[1]],

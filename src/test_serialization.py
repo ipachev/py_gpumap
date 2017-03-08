@@ -56,7 +56,7 @@ class TestSerialization:
             assert i1.o.x == i2.o.x
             assert i1.o.y == i2.o.y
             assert i1.o.z == i2.o.z
-            assert isinstance(i1.o.q, TestClassC) and isinstance(i2.o.q, TestClassC)
+            assert i1.o.q.i == i2.o.q.i
 
         print("passed object to_bytes test")
 
@@ -74,7 +74,7 @@ class TestSerialization:
             assert i1.o.x == i2.o.x
             assert i1.o.y == i2.o.y
             assert i1.o.z == i2.o.z
-            assert isinstance(i1.o.q, TestClassC) and isinstance(i2.o.q, TestClassC)
+            assert i1.o.q.i == i2.o.q.i
 
         print("passed object create_output_list test")
 
@@ -92,8 +92,7 @@ class TestSerialization:
 
         bytes = serializer.to_bytes()
 
-        new_items = serializer.from_bytes(bytes)  # unpacking primitives doesnt go in the same list
-
+        new_items = serializer.from_bytes(bytes)
 
         assert len(duplicate_items) == len(new_items)
         for i1, i2 in zip(duplicate_items, new_items):
@@ -103,6 +102,7 @@ class TestSerialization:
 
         serializer2 = ListSerializer(class_repr, length=len(items))
         output_list = serializer2.create_output_list(bytes, candidate_item)
+        assert output_list is not items
 
         assert len(duplicate_items) == len(output_list)
         for i1, i2 in zip(duplicate_items, output_list):

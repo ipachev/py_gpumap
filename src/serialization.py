@@ -30,7 +30,7 @@ class ItemSerializer:
     def _extract_inner_data(item, class_repr, data_items):
         for field, _type in zip(class_repr.field_names, class_repr.field_types):
             if isinstance(_type, ClassRepresentation):
-                ListSerializer._extract_inner_data(item.__dict__[field], _type, data_items)
+                ItemSerializer._extract_inner_data(item.__dict__[field], _type, data_items)
             else:
                 data_items.append(item.__dict__[field])
 
@@ -73,7 +73,7 @@ class ListSerializer:
     @staticmethod
     def get_data_items(_list, class_repr):
         if not isinstance(class_repr, ClassRepresentation):
-            return [len(_list)] +_list
+            return [len(_list)] + _list
         else:
             data_items = [len(_list)] # first part of a list struct is its length
             for item in _list:
@@ -95,14 +95,14 @@ class ListSerializer:
     @staticmethod
     def project_size(class_repr, candidate_obj, list_length):
         format = primitive_map[class_repr] if class_repr in primitive_map else class_repr.get_format()
-        return struct.calcsize("i") + struct.calcsize(format) * list_length
+        return struct.calcsize("i" + format * list_length)
 
     def from_bytes(self, _bytes):
-        # unpacks into the same objects
         data_items = list(struct.unpack(self.format, _bytes))[1:] # skip list length
         if not isinstance(self.class_repr, ClassRepresentation):
             return data_items
         else:
+            # unpacks into the same objects
             output_list = self._list
             self.data_items_unpacked = 0
             for item in output_list:
