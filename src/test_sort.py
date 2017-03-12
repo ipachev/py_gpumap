@@ -4,20 +4,24 @@ from pickle import dumps, loads
 from util import get_time, Results
 
 class TestSort:
-    def __init__(self):
-        self.size = 2
-
     def prepare(self, size):
         self.lists = [[randint(0, 1000000) for _ in range(size)] for _ in range(1000)]
         pickle_str = dumps(self.lists)
         self.lists2 = loads(pickle_str)
         self.sorted = [sorted(l) for l in self.lists]
 
+    def warmup(self):
+        self.prepare(256)
+        gpumap(bubblesort, self.lists)
+        list(map(bubblesort, self.lists2))
+        Results.clear_results()
+
     def run(self):
         with open("bubble_out.csv", "w") as f:
             print("list_size,num_lists,gpu,cpu",file=f)
-            while self.size <= 4096:
-                self.prepare(self.size)
+            size = 2
+            while size <= 8192:
+                self.prepare(size)
                 gpu = get_time(gpumap, bubblesort, self.lists)
                 cpu = get_time(list, map(bubblesort, self.lists2))
 
@@ -25,11 +29,11 @@ class TestSort:
                     for i1, i2, i3 in zip(l1, l2, l3):
                         assert i1 == i2 == i3
 
-                print("{},{},{},{}".format(self.size, 1000, gpu, cpu), file=f)
+                print("{},{},{},{}".format(size, 1000, gpu, cpu), file=f)
                 f.flush()
 
-                Results.output_results("bubblesort", "results-%d.csv" % self.size)
-                self.size *= 2
+                Results.output_results("bubblesort", "results-%d.csv" % size)
+                size *= 2
 
 def bubblesort(lst):
     for i in range(len(lst)):
@@ -40,4 +44,6 @@ def bubblesort(lst):
                 lst[i] = temp
 
 if __name__ == "__main__":
-    TestSort().run()
+    t = TestSort()
+    t.warmup()
+    t.run()

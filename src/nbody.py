@@ -176,6 +176,7 @@ def warmup():
     cpu_bodies = body_gen.get_copy()
     cpu_sim = CPU_Simulation(cpu_bodies, num_steps)
     cpu_sim.run()
+    Results.clear_results()
 
 if __name__ == "__main__":
     warmup()
