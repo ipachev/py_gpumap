@@ -33,6 +33,7 @@ class TestSort:
                 f.flush()
 
                 Results.output_results("bubblesort", "results-%d.csv" % size)
+                Results.clear_results()
                 size *= 2
 
 def bubblesort(lst):
