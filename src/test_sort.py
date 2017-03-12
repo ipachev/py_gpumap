@@ -5,20 +5,26 @@ from util import time_func, Results
 1
 class TestSort:
     def __init__(self):
-        self.lists = [[randint(0, 1000000) for _ in range(1000)] for _ in range(1000)]
+        self.size = 512
+
+    def prepare(self, size):
+        self.lists = [[randint(0, 1000000) for _ in range(size)] for _ in range(1000)]
         pickle_str = dumps(self.lists)
         self.lists2 = loads(pickle_str)
         self.sorted = [sorted(l) for l in self.lists]
 
     def run(self):
-        time_func("bubble gpu", gpumap, bubblesort, self.lists)
-        time_func("bubble cpu", list, map(bubblesort, self.lists2))
+        while self.size <= 4096:
+            self.prepare(self.size)
+            time_func("bubble gpu %s" % self.size, gpumap, bubblesort, self.lists)
+            time_func("bubble cpu %s" % self.size, list, map(bubblesort, self.lists2))
 
-        for l1, l2, l3 in zip(self.lists, self.lists2, self.sorted):
-            for i1, i2, i3 in zip(l1, l2, l3):
-                assert i1 == i2 == i3
+            for l1, l2, l3 in zip(self.lists, self.lists2, self.sorted):
+                for i1, i2, i3 in zip(l1, l2, l3):
+                    assert i1 == i2 == i3
 
-        Results.output_results("bubblesort", "output.csv")
+            Results.output_results("bubblesort", "results-%s.csv" % self.size)
+            self.size *= 2
 
 def bubblesort(lst):
     for i in range(len(lst)):
