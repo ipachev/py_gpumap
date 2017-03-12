@@ -5,7 +5,7 @@ from util import get_time, Results
 
 class TestSort:
     def __init__(self):
-        self.size = 512
+        self.size = 2
 
     def prepare(self, size):
         self.lists = [[randint(0, 1000000) for _ in range(size)] for _ in range(1000)]
