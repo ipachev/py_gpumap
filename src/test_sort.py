@@ -5,7 +5,7 @@ from util import get_time, Results
 
 class TestSort:
     def prepare(self, size):
-        self.lists = [[randint(0, 1000000) for _ in range(size)] for _ in range(1000)]
+        self.lists = [[randint(0, 1000000) for _ in range(size)] for _ in range(5000)]
         pickle_str = dumps(self.lists)
         self.lists2 = loads(pickle_str)
         self.sorted = [sorted(l) for l in self.lists]
@@ -29,7 +29,7 @@ class TestSort:
                     for i1, i2, i3 in zip(l1, l2, l3):
                         assert i1 == i2 == i3
 
-                print("{},{},{},{}".format(size, 1000, gpu, cpu), file=f)
+                print("{},{},{},{}".format(size, len(self.lists), gpu, cpu), file=f)
                 f.flush()
 
                 Results.output_results("bubblesort", "results-%d.csv" % size)

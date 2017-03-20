@@ -68,7 +68,7 @@ class ListSerializer:
             format = primitive_map[class_repr]
         else:
             format = class_repr.get_format()
-        return "i" + format * length
+        return "".join("i" if i == 0 else format for i in range(length+1))
 
     @staticmethod
     def get_data_items(_list, class_repr):

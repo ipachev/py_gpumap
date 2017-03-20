@@ -8,37 +8,14 @@ import itertools
 
 class ClassDefGenerator:
 
-    def _calc_dependencies(self, extracted_classes):
-        dependencies = defaultdict(set)
-        for class_repr in extracted_classes.classes.values():
-            for field_repr in class_repr.field_types:
-                if isinstance(field_repr, ClassRepresentation):
-                    dependencies[class_repr].add(field_repr.raw_type)
-            for method in class_repr.methods:
-                if method.return_type not in primitive_map and method.return_type is not type(None):
-                    dependencies[class_repr].add(method.return_type)
-                for arg_type in method.arg_types:
-                    if arg_type not in primitive_map and arg_type is not type(None):
-                        dependencies[class_repr].add(arg_type)
-            if class_repr.raw_type in dependencies[class_repr]:
-                dependencies[class_repr].remove(class_repr.raw_type)
-        return dependencies
-
     def all_cpp_class_defs(self, extracted_classes):
-        generated = set()
         output_list = []
-        dependencies = self._calc_dependencies(extracted_classes)
-        for class_repr in dependencies:
-            self._class_def_for(extracted_classes, generated, output_list, dependencies, class_repr)
-        return "\n".join(output_list) + "\n"
+        for class_repr in extracted_classes.classes.values():
+            output_list.append("class {name};".format(name=class_repr.name))
 
-    def _class_def_for(self, extracted_classes, generated, output_list, dependencies, class_repr):
-        for dep in dependencies[class_repr]:
-            if dep not in generated:
-                self._class_def_for(extracted_classes, generated, output_list, dependencies,
-                                    extracted_classes.type_to_repr[dep])
-        generated.add(class_repr.raw_type)
-        output_list.append(self.cpp_class_def(class_repr))
+        for class_repr in extracted_classes.classes.values():
+            output_list.append(self.cpp_class_def(class_repr))
+        return "\n".join(output_list) + "\n"
 
     def cpp_class_def(self, class_repr):
         output = "class %s {\n" % class_repr.name

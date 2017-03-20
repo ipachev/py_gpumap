@@ -52,7 +52,6 @@ class FunctionDefGenerator:
                 whole_ref_list = [False if t in primitive_map else next(iter_ref_list) for t in func_repr.arg_types]
                 func_conv = FunctionConverter(func_repr, refs=whole_ref_list)
                 lines.append(func_conv.convert())
-
         return "\n".join(lines)
 
 

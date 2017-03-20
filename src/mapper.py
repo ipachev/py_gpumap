@@ -117,11 +117,11 @@ class MapperKernel:
 
         func_repr = self.functions.functions[self.entry_point.name]
         for name, class_repr, is_list in self.closure_vars:
-            type_name = class_repr.name if isinstance(class_repr, ClassRepresentation) else class_repr.__name__
+            t = class_repr.raw_type if isinstance(class_repr, ClassRepresentation) else class_repr
             if is_list:
-                func_repr.arg_types.append("List<{type_name}>".format(type_name=type_name))
+                func_repr.arg_types.append("List<{type_name}>".format(type_name=t.__name__))
             else:
-                func_repr.arg_types.append("{type_name}".format(type_name=type_name))
+                func_repr.arg_types.append(t)
             func_repr.args.append(name)
 
         fn_def_gen = FunctionDefGenerator()
@@ -217,8 +217,6 @@ class Mapper:
 
         self.classes.add_methods(called)
         self.functions.add_functions(called)
-
-        self.out_serializer = ListSerializer(self.candidate_out_repr, length=len(self.rest))
         return called[0]
 
     def serialize_input(self):
@@ -276,6 +274,7 @@ class Mapper:
         assert len(self.entry_point.args) == 1 # must be a function with one argument
         assert len(self.entry_point.types) == 1
         assert self.entry_point.cls is None # must not be a method
+        self.out_serializer = ListSerializer(self.candidate_out_repr, length=len(self.rest))
 
         time_func("serialize input", self.serialize_input)
         if self.entry_point.return_type != type(None):

@@ -1,10 +1,12 @@
 from time import perf_counter
 import os
+import socket
 
 
 class Results:
     results_dir = os.path.join(os.getenv("HOME"), ".ivan_results")
     os.makedirs(results_dir, exist_ok=True)
+    hostname=socket.gethostname()
     results = {}
     columns = ["code generator", "serialize closure vars", "serialize input", "first_call", "run kernel", "deserialize", "total"]
     for column in columns:
@@ -16,7 +18,7 @@ class Results:
             Results.results[column] = []
 
     @staticmethod
-    def output_results(dir_name=perf_counter(), file_name="output.csv"):
+    def output_results(dir_name=hostname, file_name="output.csv"):
         path = os.path.join(Results.results_dir, "{}".format(dir_name))
         os.makedirs(path, exist_ok=True)
         path = os.path.join(path, file_name)
