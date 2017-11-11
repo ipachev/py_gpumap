@@ -1,6 +1,6 @@
 # Transparently gpu-accelerated batch operations on lists of homogeneous python objects!
 
-This is part of the work I'm doing for my thesis.
+This is part of the work I did for my thesis.
 I'm trying to create a gpu-accelerated map function that works with relatively simple functions and objects.
 The goal is to allow programmers to create a list of homogenous, arbitrarily nested simple python objects and apply a function to each element in the list!
 
@@ -20,7 +20,7 @@ This depends on pycuda and numpy!
 * `from filterer import gpufilter`
 * define a non-lambda function f that returns a boolean describing whether or not to include an item
 * create a list L of objects
-* filtered_list = gpufilter(f, L)
+* `filtered_list = gpufilter(f, L)`
 
 ## Limitations:
 
@@ -30,13 +30,15 @@ This depends on pycuda and numpy!
 * Objects can only contain other objects, floats, or ints.
 * Assignments into an existing variable must be of the same type!
 * Strings, lists, and dicts are not yet supported
-* The only types of for loops are `for ... in range(...)`
-* Probably some other stuff I'm leaving out...
-* Builtin functions are not implemented
+* The only types of for loops are `for ... in range(...)`or `for ... in <list>`
+* Lists can only be passed in as closure variables or as the input list.
+* Most built-in funcitons are not implemented
+* The input lists and closure lists must not contain references to the same objects.
 
-I currently don't make use of CUDA thread-level dynamic allocation, but using it makes it possible to support much more complex language features!
-Some of these language features that could use dynamic allocation include lists, dicts, and strings!
-Hopefully the performance isn't too bad!
+I currently don't make use of CUDA thread-level dynamic allocation because it's slow when all threads compete for allocations. However, it's possible to implement a good lockless parallel dynamic allocation scheme and that would make it easier to implement a lot more language feautres!
+
+We can also make it so that functions dont need the same arg types and objects dont need the same field types using C++ templates in the generated code!
+
 
 ## Supported Language Features
 
@@ -48,12 +50,13 @@ Hopefully the performance isn't too bad!
 * if statements
 * while loops
 * for ... range(...) loops
+* for ... <list> loops
 * break and continue
 * mathematical operators except `**`
 * comparison operators on integers, floats, and booleans
 * unary operators !, -, +, ~
 * turnary expression (`a if b else c`)
-* (coming soon) mathematical functions such as sqrt, log, etc
+* mathematical functions such as sqrt, log, etc
 * probably some more stuff i'm leaving out
 
 
