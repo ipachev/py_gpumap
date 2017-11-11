@@ -49,10 +49,10 @@ We can also make it so that functions dont need the same arg types and objects d
 * boolean operations
 * if statements
 * while loops
-* for ... range(...) loops
-* for ... <list> loops
+* for i in range(...) loops
+* for item in \<list\> loops
 * break and continue
-* mathematical operators except `**`
+* mathematical operators except `**` (use math.pow)
 * comparison operators on integers, floats, and booleans
 * unary operators !, -, +, ~
 * turnary expression (`a if b else c`)
