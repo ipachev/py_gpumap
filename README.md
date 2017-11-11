@@ -78,3 +78,6 @@ Suppose you have a function f, a list L, and L' = map(f, L)
 
 This is not very refined but it does seem to work for limited types of python syntax and simple objects!
 It also seems to give a decent performance boost when it actually works!
+
+## More info:
+http://digitalcommons.calpoly.edu/theses/1704/
