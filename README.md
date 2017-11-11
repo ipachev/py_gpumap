@@ -57,6 +57,7 @@ We can also make it so that functions dont need the same arg types and objects d
 * unary operators !, -, +, ~
 * turnary expression (`a if b else c`)
 * mathematical functions such as sqrt, log, etc
+* including lists, objects, or primitives as closure variables on the function passed to gpumap is possible
 * probably some more stuff i'm leaving out
 
 
